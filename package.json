@@ -1,14 +1,15 @@
 {
   "name": "openclaw-syncralis",
   "version": "2.0.0",
-  "description": "An industry-grade file sharing, secure download, and load-balanced web search tool for OpenClaw.",
-  "main": "server.js",
+  "description": "An industry-grade file sharing, secure download, and load-balanced gateway designed for high-availability OpenClaw environments.",
   "type": "module",
+  "main": "./server.js",
   "bin": {
     "openclaw-syncralis": "./server.js"
   },
   "scripts": {
-    "start": "node server.js",
+    "build": "node ./build.js",
+    "start": "node ./dist/server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -36,6 +37,54 @@
       "express-rate-limit": {
         "ip-address": "^10.1.1"
       }
+    }
+  },
+  "openclaw": {
+    "type": "gateway",
+    "extensions": [
+      "./server.js"
+    ],
+    "runtimeExtensions": [
+      "./dist/server.js"
+    ],
+    "compat": {
+      "pluginApi": ">=2026.3.24-beta.2",
+      "minGatewayVersion": "2026.3.24-beta.2"
+    },
+    "build": {
+      "openclawVersion": "2026.3.24-beta.2",
+      "pluginSdkVersion": "2026.3.24-beta.2"
+    },
+    "configSchema": {
+      "type": "object",
+      "required": [
+        "WORKSPACE_DIR"
+      ],
+      "properties": {
+        "FILE_SERVER_PORT": {
+          "type": "number",
+          "default": 8080,
+          "description": "The port on which the Syncralis gateway will listen."
+        },
+        "WORKSPACE_DIR": {
+          "type": "string",
+          "description": "Absolute path to the directory being served. Must be reachable by the service."
+        },
+        "FILE_SERVER_HOST": {
+          "type": "string",
+          "default": "127.0.0.1",
+          "description": "The host interface to bind the gateway to."
+        },
+        "NODE_ENV": {
+          "type": "string",
+          "enum": [
+            "development",
+            "production"
+          ],
+          "default": "production"
+        }
+      },
+      "additionalProperties": true
     }
   }
 }
