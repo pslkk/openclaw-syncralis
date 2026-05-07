@@ -1,0 +1,41 @@
+{
+  "name": "openclaw-syncralis",
+  "version": "2.0.0",
+  "description": "An industry-grade file sharing, secure download, and load-balanced web search tool for OpenClaw.",
+  "main": "server.js",
+  "type": "module",
+  "bin": {
+    "openclaw-syncralis": "./server.js"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "mcp",
+    "openclaw",
+    "ai",
+    "tools",
+    "file-server",
+    "web-search",
+    "tavily",
+    "brave",
+    "ngrok"
+  ],
+  "author": "PSLKK <coregravity0.0.0@protonmail.com> (https://pslkk.space)",
+  "license": "ISC",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "dotenv": "^17.4.2",
+    "mammoth": "^1.12.0",
+    "mime-types": "^3.0.2",
+    "pdf-parse": "^2.4.5"
+  },
+  "overrides": {
+    "@modelcontextprotocol/sdk": {
+      "express-rate-limit": {
+        "ip-address": "^10.1.1"
+      }
+    }
+  }
+}
