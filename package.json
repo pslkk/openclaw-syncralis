@@ -1,6 +1,6 @@
 {
   "name": "openclaw-syncralis",
-  "version": "2.0.1",
+  "version": "2.0.3",
   "description": "An industry-grade file sharing, secure download, and load-balanced gateway designed for high-availability OpenClaw environments.",
   "type": "module",
   "main": "./server.js",
@@ -97,16 +97,6 @@
         "NGROK_TOKEN": {
           "type": "string",
           "description": "Authentication token for the Ngrok service."
-        },
-        "REQUEST_TIMEOUT_MS": {
-          "type": "number",
-          "default": 10000,
-          "description": "Timeout duration in milliseconds for gateway requests."
-        },
-        "MAX_QUERY_LENGTH": {
-          "type": "number",
-          "default": 2000,
-          "description": "Maximum allowed character length for search queries."
         }
       },
       "additionalProperties": true
