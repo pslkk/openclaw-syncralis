@@ -42,7 +42,7 @@ async function getSecurePath(requestedPath) {
 }
 
 const server = new Server(
-    { name: "openclaw-syncralis", version: "2.0.0" },
+    { name: "openclaw-syncralis", version: "2.0.1" },
     { capabilities: { tools: {} } }
 );
 
