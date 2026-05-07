@@ -43,6 +43,15 @@ npm install -g openclaw-syncralis
 
 ```
 
+### 🔑 Authentication
+Before configuring the server, authenticate your local environment with the registry to ensure a secure handshake:
+
+```bash
+
+clawhub login pslkk/openclaw-syncralis
+
+```
+
 
 ## ⚙️ Configuration & Deployment
 
@@ -76,8 +85,7 @@ When running OpenClaw natively on your host machine, Syncralis spins up a secure
         "command": "openclaw-syncralis",
         "env": {
           "NODE_ENV": "production",
-          "FILE_SERVER_HOST": "127.0.0.1",
-          "WORKSPACE_DIR": "C:/path/to/your/workspace", 
+          "FILE_SERVER_HOST": "127.0.0.1", 
           "PUBLIC_TUNNEL_URL": "https://your-ngrok-url.ngrok-free.app",
           "TAVILY_API_KEY": "your_tavily_key",
           "BRAVE_API_KEY": "your_brave_key"
@@ -105,7 +113,6 @@ OpenClaw often executes tools as ephemeral child processes. In a containerized s
         "env": {
           "NODE_ENV": "production",
           "FILE_SERVER_HOST": "0.0.0.0",
-          "WORKSPACE_DIR": "/shared_workspace",
           "PUBLIC_TUNNEL_URL": "https://your-static-domain.ngrok-free.app",
           "TAVILY_API_KEY": "your_tavily_key",
           "BRAVE_API_KEY": "your_brave_key"
@@ -146,9 +153,7 @@ services:
    volumes:
      -  ./claw_data:/home/node/.openclaw:rw
      -  # Your config file
-     - ./workspace:/shared_workspace # The directory Syncralis will use
    environment:
-     - WORKSPACE_DIR=/shared_workspace
      - FILE_SERVER_HOST=0.0.0.0
      - FILE_SERVER_PORT=8080
      - PUBLIC_TUNNEL_URL=https://<your-custom-domain>.ngrok-free.app
