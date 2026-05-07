@@ -18,8 +18,8 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '.env') });
 
-const TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS) || 10000;
-const MAX_QUERY_LENGTH = parseInt(process.env.MAX_QUERY_LENGTH) || 2000;
+const TIMEOUT_MS = 10000;
+const MAX_QUERY_LENGTH = 2000;
 let requestCount = 0;
 
 const require = createRequire(import.meta.url);
@@ -42,7 +42,7 @@ async function getSecurePath(requestedPath) {
 }
 
 const server = new Server(
-    { name: "openclaw-syncralis", version: "2.0.1" },
+    { name: "openclaw-syncralis", version: "2.0.3" },
     { capabilities: { tools: {} } }
 );
 
