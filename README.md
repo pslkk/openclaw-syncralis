@@ -70,33 +70,19 @@ When running OpenClaw natively on your host machine, Syncralis spins up a secure
   ```json
 
   "mcp": {
-
     "servers": {
-
       "syncralis": {
-
         "command": "openclaw-syncralis",
-
         "env": {
-
           "NODE_ENV": "production",
-
           "FILE_SERVER_HOST": "127.0.0.1",
-
           "WORKSPACE_DIR": "C:/path/to/your/workspace", 
-
           "PUBLIC_TUNNEL_URL": "https://your-ngrok-url.ngrok-free.app",
-
           "TAVILY_API_KEY": "your_tavily_key",
-
           "BRAVE_API_KEY": "your_brave_key"
-
         }
-
       }
-
     }
-
   }
 
   ```
@@ -112,33 +98,19 @@ OpenClaw often executes tools as ephemeral child processes. In a containerized s
   ```json
 
   "mcp": {
-
     "servers": {
-
       "syncralis": {
-
         "command": "openclaw-syncralis",
-
         "env": {
-
           "NODE_ENV": "production",
-
           "FILE_SERVER_HOST": "0.0.0.0",
-
           "WORKSPACE_DIR": "/shared_workspace",
-
           "PUBLIC_TUNNEL_URL": "https://your-static-domain.ngrok-free.app",
-
           "TAVILY_API_KEY": "your_tavily_key",
-
           "BRAVE_API_KEY": "your_brave_key"
-
         }
-
       }
-
     }
-
   }
 
   ```
@@ -155,7 +127,7 @@ If you are running OpenClaw entirely inside Docker, here is a complete, producti
 version: '3.8'
 
 networks:
- mcp\_network:
+ mcp_network:
    driver: bridge
 
 services:
