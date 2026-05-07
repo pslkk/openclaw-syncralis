@@ -5,11 +5,20 @@
   "description": "An industry-grade file sharing, secure download, and load-balanced web search tool for OpenClaw environments.",
   "main": "server.js",
   "openclaw": {
+    "type": "gateway",
     "compat": {
       "pluginApi": "^1.0.0"
     },
     "build": {
       "openclawVersion": "^1.0.0"
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "FILE_SERVER_PORT": { "type": "number", "default": 8080 },
+        "WORKSPACE_DIR": { "type": "string" }
+      },
+      "additionalProperties": true
     }
   }
 }
