@@ -18,6 +18,16 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '.env') });
 
+const GATEWAY_CONFIG = {
+  host: process.env.FILE_SERVER_HOST || '127.0.0.1',
+  port: parseInt(process.env.FILE_SERVER_PORT, 10) || 8080,
+  //workspace: path.join(os.homedir(), '.openclaw', 'workspace'),
+  tavilyKey: process.env.TAVILY_API_KEY,
+  braveKey: process.env.BRAVE_API_KEY,
+  tunnelUrl: process.env.PUBLIC_TUNNEL_URL,
+  ngrokToken: process.env.NGROK_TOKEN
+};
+
 const TIMEOUT_MS = 10000;
 const MAX_QUERY_LENGTH = 2000;
 let requestCount = 0;
@@ -25,7 +35,7 @@ let requestCount = 0;
 const require = createRequire(import.meta.url);
 const pdf = require("pdf-parse");
 
-const WORKSPACE_DIR = process.env.WORKSPACE_DIR || path.join(os.homedir(), '.openclaw', 'workspace');
+const WORKSPACE_DIR = path.join(os.homedir(), '.openclaw', 'workspace');
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 
 async function getSecurePath(requestedPath) {
@@ -42,7 +52,7 @@ async function getSecurePath(requestedPath) {
 }
 
 const server = new Server(
-    { name: "openclaw-syncralis", version: "2.0.3" },
+    { name: "openclaw-syncralis", version: "2.0.4" },
     { capabilities: { tools: {} } }
 );
 
@@ -51,7 +61,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         tools: [
             {
                 name: "share_files",
-                description: "CRITICAL: Handles reading and sharing files. Trigger this tool and set action to 'download' if a link or URL is requested.",
+                description: "Handles reading and sharing files. Trigger this tool and set action to 'download' if a link or URL is requested.",
                 inputSchema: {
                     type: "object",
                     properties: {
@@ -62,7 +72,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                         action: {
                             type: "string",
                             enum: ["read", "download"],
-                            description: "MANDATORY ENUM. Use 'read' for text contents. Use 'download' for a URL link."
+                            description: "Use 'read' for text contents. Use 'download' for a URL link."
                         }
                     },
                     required: ["filePath"]
@@ -124,7 +134,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             const mimeType = mime.lookup(securePath) || 'application/octet-stream';
 
             if (action === "download") {
-                const tunnelUrl = process.env.PUBLIC_TUNNEL_URL;
+                const tunnelUrl = GATEWAY_CONFIG.tunnelUrl;
                 if (!tunnelUrl) {
                     return {
                         isError: true,
@@ -223,8 +233,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     
     else if (name === "web_search") {
         let rawQuery = request.params.arguments?.query;
-        const tavilyKey = process.env.TAVILY_API_KEY;
-        const braveKey = process.env.BRAVE_API_KEY;
+        const tavilyKey = GATEWAY_CONFIG.tavilyKey;
+        const braveKey = GATEWAY_CONFIG.braveKey;
 
         if (!rawQuery || typeof rawQuery !== 'string') {
             return { isError: true, content: [{ type: "text", text: "Search failed: Query must be a valid string." }] };
@@ -333,8 +343,8 @@ async function fetchBrave(query, apiKey, signal) {
 }
 
 function startSecureFileServer() {
-    const PORT = parseInt(process.env.FILE_SERVER_PORT) || 8080;
-    const HOST = process.env.FILE_SERVER_HOST || '127.0.0.1'; 
+    const PORT = GATEWAY_CONFIG.port;
+    const HOST = GATEWAY_CONFIG.host; 
     
     const fileServer = http.createServer(async (req, res) => {
         try {
