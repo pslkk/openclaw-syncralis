@@ -8,7 +8,6 @@
     "openclaw-syncralis": "./server.js"
   },
   "scripts": {
-    "build": "node ./build.js",
     "start": "node ./dist/server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -45,7 +44,7 @@
       "./server.js"
     ],
     "runtimeExtensions": [
-      "./dist/server.js"
+      "./server.js"
     ],
     "compat": {
       "pluginApi": ">=2026.3.24-beta.2",
