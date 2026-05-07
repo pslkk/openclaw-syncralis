@@ -1,6 +1,6 @@
 {
   "name": "openclaw-syncralis",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "An industry-grade file sharing, secure download, and load-balanced gateway designed for high-availability OpenClaw environments.",
   "type": "module",
   "main": "./server.js",
@@ -56,18 +56,12 @@
     },
     "configSchema": {
       "type": "object",
-      "required": [
-        "WORKSPACE_DIR"
-      ],
+      "required": [],
       "properties": {
         "FILE_SERVER_PORT": {
           "type": "number",
           "default": 8080,
           "description": "The port on which the Syncralis gateway will listen."
-        },
-        "WORKSPACE_DIR": {
-          "type": "string",
-          "description": "Absolute path to the directory being served. Must be reachable by the service."
         },
         "FILE_SERVER_HOST": {
           "type": "string",
@@ -100,6 +94,17 @@
         }
       },
       "additionalProperties": true
+    },
+    "env": {
+      "required": [],
+      "optional": [
+        "TAVILY_API_KEY",
+        "BRAVE_API_KEY",
+        "PUBLIC_TUNNEL_URL",
+        "NGROK_TOKEN",
+        "FILE_SERVER_HOST",
+        "FILE_SERVER_PORT"
+      ]
     }
   }
 }
