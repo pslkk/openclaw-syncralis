@@ -1,44 +1,54 @@
 {
+  "id": "openclaw-syncralis",
   "name": "openclaw-syncralis",
   "displayName": "Syncralis Gateway",
   "version": "2.0.0",
   "description": "An industry-grade file sharing, secure download, and load-balanced gateway designed for high-availability OpenClaw environments.",
-  "main": "server.js",
-  "openclaw": {
-    "type": "gateway",
-    "compat": {
-      "pluginApi": ">=2026.3.24-beta.2"
-    },
-    "build": {
-      "openclawVersion": "2026.3.24-beta.2"
-    },
-    "configSchema": {
-      "type": "object",
-      "required": [
-        "WORKSPACE_DIR"
-      ],
-      "properties": {
-        "FILE_SERVER_PORT": {
-          "type": "number",
-          "default": 8080,
-          "description": "The port on which the Syncralis gateway will listen."
-        },
-        "WORKSPACE_DIR": {
-          "type": "string",
-          "description": "Absolute path to the directory being served. Must be reachable by the service."
-        },
-        "FILE_SERVER_HOST": {
-          "type": "string",
-          "default": "127.0.0.1",
-          "description": "The host interface to bind the gateway to."
-        },
-        "NODE_ENV": {
-          "type": "string",
-          "enum": ["development", "production"],
-          "default": "production"
-        }
+  "type": "gateway",
+  "main": "./server.js",
+  "extensions": [
+    "./server.js"
+  ],
+  "runtimeExtensions": [
+    "./server.js"
+  ],
+  "compat": {
+    "pluginApi": ">=2026.3.24-beta.2",
+    "minGatewayVersion": "2026.3.24-beta.2"
+  },
+  "build": {
+    "openclawVersion": "2026.3.24-beta.2",
+    "pluginSdkVersion": "2026.3.24-beta.2"
+  },
+  "configSchema": {
+    "type": "object",
+    "required": [
+      "WORKSPACE_DIR"
+    ],
+    "properties": {
+      "FILE_SERVER_PORT": {
+        "type": "number",
+        "default": 8080,
+        "description": "The port on which the Syncralis gateway will listen."
       },
-      "additionalProperties": true
-    }
+      "WORKSPACE_DIR": {
+        "type": "string",
+        "description": "Absolute path to the directory being served. Must be reachable by the service."
+      },
+      "FILE_SERVER_HOST": {
+        "type": "string",
+        "default": "127.0.0.1",
+        "description": "The host interface to bind the gateway to."
+      },
+      "NODE_ENV": {
+        "type": "string",
+        "enum": [
+          "development",
+          "production"
+        ],
+        "default": "production"
+      }
+    },
+    "additionalProperties": true
   }
 }
