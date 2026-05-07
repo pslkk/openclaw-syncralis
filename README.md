@@ -14,8 +14,7 @@ Syncralis provides load-balanced web searching, secure file downloads, and mobil
 
 ***Secure File Downloads:** Downloads files directly to your workspace with strict MIME-type enforcement and streaming size limits to prevent DoS attacks.
 
-***Path Boundary Enforcement:** Cryptographically verifies all file requests to prevent directory traversal attacks outside the designated workspace.
-
+***Path Boundary Enforcement:** Strictly normalizes and validates all file requests against absolute path boundaries to prevent directory traversal attacks outside the designated workspace.
 
 
 ## 🔑 Prerequisites & Free Tiers
@@ -39,6 +38,8 @@ Install the package globally via your terminal:
 npm install -g openclaw-syncralis
 
 # OR via ClawHub: clawhub package install openclaw-syncralis
+
+# OR via Openclaw: openclaw plugins install clawhub:openclaw-syncralis
 
 ```
 
