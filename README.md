@@ -199,7 +199,7 @@ services:
 
 * `MAX_QUERY_LENGTH`: Defaults to 2000 characters.
 
-* `REQUEST_TIMEOUT_MS`: Defaults to 10000ms (10 seconds) to prevent hung API calls.
+* `TIMEOUT_MS`: Defaults to 10000ms (10 seconds) to prevent hung API calls.
 
 **Size Limits:** Syncralis enforces a hard limit of `50MB` for all file reads and downloads to prevent memory exhaustion. 
 
