@@ -3,5 +3,13 @@
   "displayName": "Syncralis Gateway",
   "version": "2.0.0",
   "description": "An industry-grade file sharing, secure download, and load-balanced web search tool for OpenClaw environments.",
-  "main": "server.js"
+  "main": "server.js",
+  "openclaw": {
+    "compat": {
+      "pluginApi": "^1.0.0"
+    },
+    "build": {
+      "openclawVersion": "^1.0.0"
+    }
+  }
 }
