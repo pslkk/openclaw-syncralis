@@ -160,8 +160,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                         type: "text",
                         text: `SUCCESS. Tell the user their file is ready and output exactly this URL: ${signedLink}`
                     }]
-                };*/
-              
+                };
             }
 
             const fileBuffer = await fsPromises.readFile(securePath);
