@@ -103,7 +103,8 @@ When running OpenClaw natively on your host machine, Syncralis spins up a secure
         "command": "openclaw-syncralis",
         "env": {
           "NODE_ENV": "production",
-          "FILE_SERVER_HOST": "127.0.0.1", 
+          "FILE_SERVER_HOST": "127.0.0.1",
+          "WORKSPACE_DIR": "C:/custom/path/to/workspace", # Not-Mandatory in native Openclaw setup
           "PUBLIC_TUNNEL_URL": "https://your-ngrok-url.ngrok-free.app",
           "URL_SIGNING_SECRET": "your_custom_32_character_secret_here",
           "TAVILY_API_KEY": "your_tavily_key",
@@ -132,6 +133,7 @@ OpenClaw often executes tools as ephemeral child processes. In a containerized s
         "env": {
           "NODE_ENV": "production",
           "FILE_SERVER_HOST": "0.0.0.0",
+          "WORKSPACE_DIR": "C:/custom/path/to/workspace", # Same path add in docker-compose.yml under volumes
           "PUBLIC_TUNNEL_URL": "https://your-static-domain.ngrok-free.app",
           "URL_SIGNING_SECRET": "your_custom_32_character_secret_here",
           "TAVILY_API_KEY": "your_tavily_key",
@@ -171,8 +173,9 @@ services:
    extra_hosts:
      - "host.docker.internal:host-gateway"
    volumes:
-     -  ./claw_data:/home/node/.openclaw:rw
-     -  # Your config file
+     - ./claw_data:/home/node/.openclaw:rw
+     - # Your config file
+     - /custom/path/to/workspace:/home/.openclaw/workspace:rw
    environment:
      - FILE_SERVER_HOST=0.0.0.0
      - FILE_SERVER_PORT=8080
