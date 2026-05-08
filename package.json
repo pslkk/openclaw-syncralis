@@ -1,6 +1,6 @@
 {
   "name": "openclaw-syncralis",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "description": "An industry-grade file sharing, secure download, and load-balanced gateway designed for high-availability OpenClaw environments.",
   "type": "module",
   "main": "./server.js",
@@ -64,7 +64,10 @@
     },
     "configSchema": {
       "type": "object",
-      "required": [],
+      "required": [
+        "TAVILY_API_KEY",
+        "BRAVE_API_KEY"
+      ],
       "properties": {
         "FILE_SERVER_PORT": {
           "type": "number",
@@ -100,6 +103,16 @@
           "type": "string",
           "description": "Authentication token for the Ngrok service."
         },
+        "WORKSPACE_DIR": {
+          "type": "string",
+          "description": "Optional: Custom absolute path for the workspace volume. Leave blank to default to ~/.openclaw/workspace",
+          "default": ""
+        },
+        "NGROK_API_PORT": {
+          "type": "number",
+          "default": 4040,
+          "description": "Optional: The local port Ngrok uses for its API (used for auto-discovery). Default is 4040."
+        },
         "URL_SIGNING_SECRET": {
           "type": "string",
           "description": "Optional: 32-byte string for signing URLs."
@@ -108,14 +121,17 @@
       "additionalProperties": true
     },
     "env": {
-      "required": [],
-      "optional": [
+      "required": [
         "TAVILY_API_KEY",
-        "BRAVE_API_KEY",
+        "BRAVE_API_KEY"
+      ],
+      "optional": [
         "PUBLIC_TUNNEL_URL",
         "NGROK_AUTHTOKEN",
         "FILE_SERVER_HOST",
         "FILE_SERVER_PORT",
+        "WORKSPACE_DIR",
+        "NGROK_API_PORT",
         "URL_SIGNING_SECRET"
       ]
     }
