@@ -36,6 +36,13 @@ let requestCount = 0;
 
 const require = createRequire(import.meta.url);
 const pdf = require("pdf-parse");
+const pkg = require("./package.json");
+
+// Check for version flags before starting the server
+if (process.argv.includes('--version') || process.argv.includes('-v')) {
+  console.log(`openclaw-syncralis v${pkg.version}`);
+  process.exit(0);
+}
 
 const WORKSPACE_DIR = path.join(os.homedir(), '.openclaw', 'workspace');
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
@@ -72,7 +79,7 @@ async function getSecurePath(requestedPath) {
 }
 
 const server = new Server(
-    { name: "openclaw-syncralis", version: "2.1.0" },
+    { name: "openclaw-syncralis", version: "2.1.1" },
     { capabilities: { tools: {} } }
 );
 
