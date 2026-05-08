@@ -26,7 +26,7 @@ const GATEWAY_CONFIG = {
   tavilyKey: process.env.TAVILY_API_KEY,
   braveKey: process.env.BRAVE_API_KEY,
   tunnelUrl: process.env.PUBLIC_TUNNEL_URL,
-  ngrokToken: process.env.NGROK_AUTHTOKEN,
+  //ngrokToken: process.env.NGROK_AUTHTOKEN,
   signingSecret: process.env.URL_SIGNING_SECRET || crypto.randomBytes(32).toString('hex')
 };
 
@@ -44,12 +44,44 @@ if (process.argv.includes('--version') || process.argv.includes('-v')) {
   process.exit(0);
 }
 
-const WORKSPACE_DIR = path.join(os.homedir(), '.openclaw', 'workspace');
+const WORKSPACE_DIR = process.env.WORKSPACE_DIR || path.join(os.homedir(), '.openclaw', 'workspace');
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 
 function generateSignedUrl(filename, expirationMinutes = 60) {
     if (!GATEWAY_CONFIG.tunnelUrl) {
+      const ngrokApiPort = process.env.NGROK_API_PORT || 4040;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+
+      try {
+        const response = await fetch(`http://127.0.0.1:${ngrokApiPort}/api/tunnels`, {
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const data = await response.json();
+          if (Array.isArray(data?.tunnels)) {
+            const httpsTunnel = data.tunnels.find(t => 
+              typeof t.public_url === 'string' && t.public_url.startsWith('https://')
+            );
+            if (httpsTunnel) {
+              activeTunnelUrl = httpsTunnel.public_url;
+              console.log(`\n\x1b[32m[System]\x1b[0m Auto-discovered active Ngrok tunnel: ${activeTunnelUrl}\n`);
+            }
+          }
+        }
+      } catch (error) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+          console.warn(`\n\x1b[33m[Warning]\x1b[0m Ngrok auto-discovery timed out on port ${ngrokApiPort}.`);
+        } else {
+          console.warn(`\n\x1b[33m[Warning]\x1b[0m PUBLIC_TUNNEL_URL is empty and local Ngrok was not detected.`);
+        }
+        console.warn(`External download links will fail. Operating in Local-Only Mode.\n`);
         throw new Error("PUBLIC_TUNNEL_URL is not configured.");
+      }
     }
     
     const safeFilename = path.basename(filename);
@@ -79,7 +111,7 @@ async function getSecurePath(requestedPath) {
 }
 
 const server = new Server(
-    { name: "openclaw-syncralis", version: "2.1.1" },
+    { name: "openclaw-syncralis", version: "2.2.0" },
     { capabilities: { tools: {} } }
 );
 
