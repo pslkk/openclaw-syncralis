@@ -61,6 +61,15 @@ Syncralis is designed as a hybrid tool. It works perfectly on your native operat
 
 Choose the deployment method that matches your OpenClaw setup below.
 
+#### The Workspace Directory (`WORKSPACE_DIR`)
+
+The gateway needs a secure folder to store and manage files. We have designed this to be fully automated, but flexible for power users:
+
+***Native / Default Install (Recommended):** Leave `WORKSPACE_DIR=` completely empty (or omit it). The gateway will automatically detect your OS and securely store files in your native home directory: `~/.openclaw/workspace`.
+
+***Docker / Custom Environments:** If you are running OpenClaw inside a custom Docker container or want to force the gateway to use a specific volume mount, define the absolute path here:
+`WORKSPACE_DIR=/custom/path/to/workspace`
+
 
 ### Option 1: Native NPM Setup (Without Docker)
 
@@ -69,8 +78,17 @@ When running OpenClaw natively on your host machine, Syncralis spins up a secure
 
 1. Open a new terminal window and run Ngrok to expose the default port:
 
+   *Note: For a production setup, we highly recommend using your static URL from the Ngrok dashboard so your tunnel never changes.*
+
   ```bash
 
+  # 1. Authenticate your terminal (Run this once)
+  ngrok config add-authtoken your_ngrok_token_here
+
+  # 2. Start the tunnel using your static URL (Recommended)
+  ngrok http --url your-custom-url.ngrok-free.app 8080
+
+  # Or, using a dynamic URL (Testing only)
   ngrok http 8080
 
   ```
