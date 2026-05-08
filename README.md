@@ -14,7 +14,7 @@ Syncralis provides load-balanced web searching, secure file downloads, and mobil
 
 ***Secure File Downloads:** Downloads files directly to your workspace with strict MIME-type enforcement and streaming size limits to prevent DoS attacks.
 
-***Path Boundary Enforcement:** Strictly normalizes and validates all file requests against absolute path boundaries to prevent directory traversal attacks outside the designated workspace.
+***Path Boundary Enforcement:** Cryptographically verifies all file requests to prevent directory traversal attacks outside the designated workspace.
 
 
 ## 🔑 Prerequisites & Free Tiers
@@ -87,6 +87,7 @@ When running OpenClaw natively on your host machine, Syncralis spins up a secure
           "NODE_ENV": "production",
           "FILE_SERVER_HOST": "127.0.0.1", 
           "PUBLIC_TUNNEL_URL": "https://your-ngrok-url.ngrok-free.app",
+          "URL_SIGNING_SECRET": "your_custom_32_character_secret_here",
           "TAVILY_API_KEY": "your_tavily_key",
           "BRAVE_API_KEY": "your_brave_key"
         }
@@ -114,6 +115,7 @@ OpenClaw often executes tools as ephemeral child processes. In a containerized s
           "NODE_ENV": "production",
           "FILE_SERVER_HOST": "0.0.0.0",
           "PUBLIC_TUNNEL_URL": "https://your-static-domain.ngrok-free.app",
+          "URL_SIGNING_SECRET": "your_custom_32_character_secret_here",
           "TAVILY_API_KEY": "your_tavily_key",
           "BRAVE_API_KEY": "your_brave_key"
         }
@@ -192,7 +194,7 @@ services:
      - mcp_network
    command: http openclaw_gateway:8080 --url=https://<your-custom-domain>.ngrok-free.app --log=stdout
    environment:
-     - NGROK_AUTHTOKEN=${NGROK_TOKEN}
+     - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
    depends_on:
      openclaw_gateway:
        condition: service_healthy
