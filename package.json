@@ -1,6 +1,6 @@
 {
   "name": "openclaw-syncralis",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "description": "An industry-grade file sharing, secure download, and load-balanced gateway designed for high-availability OpenClaw environments.",
   "type": "module",
   "main": "./server.js",
@@ -105,7 +105,7 @@
         "TAVILY_API_KEY",
         "BRAVE_API_KEY",
         "PUBLIC_TUNNEL_URL",
-        "NGROK_TOKEN",
+        "NGROK_AUTHTOKEN",
         "FILE_SERVER_HOST",
         "FILE_SERVER_PORT",
         "URL_SIGNING_SECRET"
