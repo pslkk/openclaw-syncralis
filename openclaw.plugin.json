@@ -2,7 +2,7 @@
   "id": "openclaw-syncralis",
   "name": "openclaw-syncralis",
   "displayName": "Syncralis Gateway",
-  "version": "2.1.1",
+  "version": "2.1.4",
   "description": "An industry-grade file sharing, secure download, and load-balanced gateway designed for high-availability OpenClaw environments.",
   "type": "gateway",
   "main": "./server.js",
@@ -58,6 +58,11 @@
         "type": "string",
         "description": "Authentication token for the Ngrok service."
       },
+      "WORKSPACE_DIR": {
+        "type": "string",
+        "description": "Optional: Custom absolute path for the workspace volume. Leave blank to default to ~/.openclaw/workspace",
+        "default": ""
+      },
       "URL_SIGNING_SECRET": {
         "type": "string",
         "description": "Optional: 32-byte string for signing URLs."
@@ -74,6 +79,7 @@
       "NGROK_AUTHTOKEN",
       "FILE_SERVER_HOST",
       "FILE_SERVER_PORT",
+      "WORKSPACE_DIR",
       "URL_SIGNING_SECRET"
     ]
   },
