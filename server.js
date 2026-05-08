@@ -21,7 +21,7 @@ dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 let activeTunnelUrl = process.env.PUBLIC_TUNNEL_URL;
 if (!activeTunnelUrl) {
-  const ngrokApiPort = process.env.NGROK_API_PORT || 4040;
+  const ngrokApiPort = parseInt(process.env.NGROK_API_PORT, 10) || 4040;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 2000);
 
