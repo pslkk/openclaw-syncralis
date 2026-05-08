@@ -14,7 +14,7 @@ import mammoth from "mammoth";
 import { createRequire } from "module";
 import dotenv from "dotenv";
 import { fileURLToPath } from 'url';
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '.env') });
@@ -72,7 +72,7 @@ async function getSecurePath(requestedPath) {
 }
 
 const server = new Server(
-    { name: "openclaw-syncralis", version: "2.0.6" },
+    { name: "openclaw-syncralis", version: "2.1.0" },
     { capabilities: { tools: {} } }
 );
 
