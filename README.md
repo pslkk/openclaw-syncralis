@@ -59,8 +59,6 @@ clawhub login pslkk/openclaw-syncralis
 Syncralis is designed as a hybrid tool. It works perfectly on your native operating system (Windows/Mac/Linux) or securely inside a Dockerized environment. 
 
 
-Choose the deployment method that matches your OpenClaw setup below.
-
 #### The Workspace Directory (`WORKSPACE_DIR`)
 
 The gateway needs a secure folder to store and manage files. We have designed this to be fully automated, but flexible for power users:
@@ -70,6 +68,8 @@ The gateway needs a secure folder to store and manage files. We have designed th
 ***Docker / Custom Environments:** If you are running OpenClaw inside a custom Docker container or want to force the gateway to use a specific volume mount, define the absolute path here:
 `WORKSPACE_DIR=/custom/path/to/workspace`
 
+
+Choose the deployment method that matches your OpenClaw setup below.
 
 ### Option 1: Native NPM Setup (Without Docker)
 
