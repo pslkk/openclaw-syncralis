@@ -14,6 +14,7 @@ import mammoth from "mammoth";
 import { createRequire } from "module";
 import dotenv from "dotenv";
 import { fileURLToPath } from 'url';
+const crypto = require('crypto');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '.env') });
@@ -25,7 +26,8 @@ const GATEWAY_CONFIG = {
   tavilyKey: process.env.TAVILY_API_KEY,
   braveKey: process.env.BRAVE_API_KEY,
   tunnelUrl: process.env.PUBLIC_TUNNEL_URL,
-  ngrokToken: process.env.NGROK_TOKEN
+  ngrokToken: process.env.NGROK_AUTHTOKEN,
+  signingSecret: process.env.URL_SIGNING_SECRET || crypto.randomBytes(32).toString('hex')
 };
 
 const TIMEOUT_MS = 10000;
@@ -37,6 +39,24 @@ const pdf = require("pdf-parse");
 
 const WORKSPACE_DIR = path.join(os.homedir(), '.openclaw', 'workspace');
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
+
+function generateSignedUrl(filename, expirationMinutes = 60) {
+    if (!GATEWAY_CONFIG.tunnelUrl) {
+        throw new Error("PUBLIC_TUNNEL_URL is not configured.");
+    }
+    
+    const safeFilename = path.basename(filename);
+    const safeUrlName = encodeURIComponent(safeFilename);
+    const baseUrl = GATEWAY_CONFIG.tunnelUrl.replace(/\/$/, "");
+    const expires = Date.now() + (expirationMinutes * 60 * 1000);
+    const dataToSign = `${safeFilename}:${expires}`;
+    
+    const signature = crypto.createHmac('sha256', GATEWAY_CONFIG.signingSecret)
+                            .update(dataToSign)
+                            .digest('hex');
+                            
+    return `${baseUrl}/${safeUrlName}?expires=${expires}&sig=${signature}`;
+}
 
 async function getSecurePath(requestedPath) {
     const isAbsolutePath = path.isAbsolute(requestedPath);
@@ -52,7 +72,7 @@ async function getSecurePath(requestedPath) {
 }
 
 const server = new Server(
-    { name: "openclaw-syncralis", version: "2.0.4" },
+    { name: "openclaw-syncralis", version: "2.0.5" },
     { capabilities: { tools: {} } }
 );
 
@@ -134,27 +154,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             const mimeType = mime.lookup(securePath) || 'application/octet-stream';
 
             if (action === "download") {
-                const tunnelUrl = GATEWAY_CONFIG.tunnelUrl;
-                if (!tunnelUrl) {
-                    return {
-                        isError: true,
-                        content: [{
-                            type: "text",
-                            text: "ERROR: PUBLIC_TUNNEL_URL is not configured. Cannot generate external links. Instruct the user to set up their Ngrok URL in the OpenClaw config."
-                        }]
-                    };
-                }
-
-                const safeUrlName = encodeURIComponent(fileName);
-                const baseUrl = tunnelUrl.replace(/\/$/, "");
-                const publicLink = `${baseUrl}/${safeUrlName}`;
-
+                const signedLink = generateSignedUrl(fileName);
                 return {
                     content: [{
                         type: "text",
-                        text: `SUCCESS. Tell the user their file is ready and output exactly this URL: ${publicLink}`
+                        text: `SUCCESS. Tell the user their file is ready and output exactly this URL: ${signedLink}`
                     }]
-                };
+                };*/
+              
             }
 
             const fileBuffer = await fsPromises.readFile(securePath);
@@ -354,10 +361,36 @@ function startSecureFileServer() {
                 return res.end('Method Not Allowed');
             }
 
-            const requestedFile = decodeURIComponent(req.url.slice(1).split('?')[0]); 
+            //const requestedFile = decodeURIComponent(req.url.slice(1).split('?')[0]);
+            const reqUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+            const requestedFile = decodeURIComponent(reqUrl.pathname.slice(1));
             if (!requestedFile) {
                 res.writeHead(400);
                 return res.end('Bad Request');
+            }
+
+            const expires = reqUrl.searchParams.get('expires');
+            const providedSig = reqUrl.searchParams.get('sig');
+
+            if (!expires || !providedSig) {
+                throw new Error("Missing cryptographic signature.");
+            }
+
+            if (Date.now() > parseInt(expires, 10)) {
+                throw new Error("This secure link has expired.");
+            }
+
+            const safeFilename = path.basename(requestedFile); 
+            const dataToVerify = `${safeFilename}:${expires}`;
+            const expectedSig = crypto.createHmac('sha256', GATEWAY_CONFIG.signingSecret)
+                                      .update(dataToVerify)
+                                      .digest('hex');
+
+            const providedSigBuffer = Buffer.from(providedSig);
+            const expectedSigBuffer = Buffer.from(expectedSig);
+
+            if (providedSigBuffer.length !== expectedSigBuffer.length || !crypto.timingSafeEqual(providedSigBuffer, expectedSigBuffer)) {
+                throw new Error("Cryptographic signature mismatch.");
             }
 
             const securePath = await getSecurePath(requestedFile);
