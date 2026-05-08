@@ -467,7 +467,7 @@ async function main() {
         startSecureFileServer();
         const transport = new StdioServerTransport();
         await server.connect(transport);
-        console.error("[System] OpenClaw Enterprise File Ops MCP running securely via stdio");
+        console.error("[System] openclaw-syncralis MCP running securely");
     } catch (error) {
         console.error("[Fatal] Server connection failed:", error);
         process.exit(1);
