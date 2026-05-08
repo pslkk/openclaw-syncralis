@@ -1,6 +1,6 @@
 {
   "name": "openclaw-syncralis",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "An industry-grade file sharing, secure download, and load-balanced gateway designed for high-availability OpenClaw environments.",
   "type": "module",
   "main": "./server.js",
@@ -24,6 +24,14 @@
   ],
   "author": "PSLKK <coregravity0.0.0@protonmail.com> (https://pslkk.space)",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pslkk/openclaw-syncralis.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pslkk/openclaw-syncralis/issues"
+  },
+  "homepage": "https://github.com/pslkk/openclaw-syncralis#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "dotenv": "^17.4.2",
