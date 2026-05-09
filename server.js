@@ -364,7 +364,7 @@ async function fetchBrave(query, apiKey, signal) {
 
 function startSecureFileServer() {
     const PORT = GATEWAY_CONFIG.port;
-    const HOST = GATEWAY_CONFIG.host; 
+    const HOST = GATEWAY_CONFIG.host || '127.0.0.1';
     
     const fileServer = http.createServer(async (req, res) => {
         try {
