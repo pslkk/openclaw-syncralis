@@ -77,7 +77,6 @@ if (process.argv.includes('--version') || process.argv.includes('-v')) {
 }
 
 const WORKSPACE_DIR = getWorkspaceDir(GATEWAY_CONFIG.workspaceOverride);
-const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 
 function generateSignedUrl(filename, expirationMinutes = 60) {
     if (!activeTunnelUrl) {
@@ -401,7 +400,7 @@ function startSecureFileServer() {
 
             const safeFilename = path.basename(requestedFile); 
             const dataToVerify = `${safeFilename}:${expires}`;
-            const expectedSig = crypto.createHmac('sha256', GATEWAY_CONFIG.signingSecret)
+            const expectedSig = crypto.createHmac('sha256', GATEWAY_CONFIG.secret)
                                       .update(dataToVerify)
                                       .digest('hex');
 
@@ -412,16 +411,12 @@ function startSecureFileServer() {
                 throw new Error("Cryptographic signature mismatch.");
             }
 
-            const securePath = await getSecurePath(requestedFile);
-            
-            const stats = await fsPromises.stat(securePath);
-            if (!stats.isFile()) throw new Error("Requested path is not a valid file");
-
-            const mimeType = mime.lookup(securePath) || 'application/octet-stream';
+            const securePath = await getSecurePath(WORKSPACE_DIR, requestedFile);
+            const { buffer, mimeType, size } = await readSafeFile(securePath);
             
             res.writeHead(200, {
                 'Content-Type': mimeType,
-                'Content-Length': stats.size,
+                'Content-Length': size,
                 'Content-Disposition': `attachment; filename="${path.basename(securePath)}"` 
             });
 
