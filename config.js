@@ -21,10 +21,13 @@ export const env = cleanEnv(safeEnv, {
     BRAVE_API_KEY: str({ default: '' })
 });
 
-export const signingSecret = env.URL_SIGNING_SECRET || 
-    (env.NODE_ENV === 'production' 
-        ? (() => { throw new Error('FATAL: URL_SIGNING_SECRET is required in production.'); })() 
-        : crypto.randomBytes(32).toString('hex'));
+export const signingSecret = env.URL_SIGNING_SECRET || (() => {
+    if (env.NODE_ENV === 'production') {
+        console.error(`\n\x1b[33m[Notice]\x1b[0m URL_SIGNING_SECRET is not configured. Auto-generating a temporary secret.`);
+        console.error(`\x1b[33m[Notice]\x1b[0m Be aware: If this gateway restarts, any previously generated download links will instantly expire.\n`);
+    }
+    return crypto.randomBytes(32).toString('hex');
+})();
 
 export const GATEWAY_CONFIG = Object.freeze({
     host: env.FILE_SERVER_HOST,
