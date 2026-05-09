@@ -16,17 +16,24 @@ import dotenv from "dotenv";
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, '.env') });
+import { GATEWAY_CONFIG } from './config.js';
+import { 
+    getWorkspaceDir, 
+    ensureWorkspaceExists, 
+    getSecurePath, 
+    readSafeFile, 
+    createSafeWriteStream, 
+    deleteSafeFile,
+    MAX_FILE_SIZE_BYTES
+} from './fileOps.js';
 
-let activeTunnelUrl = process.env.PUBLIC_TUNNEL_URL;
+let activeTunnelUrl = GATEWAY_CONFIG.tunnelUrlFallback;
 if (!activeTunnelUrl) {
-  const ngrokApiPort = parseInt(process.env.NGROK_API_PORT, 10) || 4040;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 2000);
 
   try {
-    const response = await fetch(`http://127.0.0.1:${ngrokApiPort}/api/tunnels`, {
+    const response = await fetch(`http://127.0.0.1:${GATEWAY_CONFIG.discoveryPort}/api/tunnels`, {
       signal: controller.signal
     });
         
@@ -55,17 +62,6 @@ if (!activeTunnelUrl) {
   }
 }
 
-const GATEWAY_CONFIG = {
-  host: process.env.FILE_SERVER_HOST || '127.0.0.1',
-  port: parseInt(process.env.FILE_SERVER_PORT, 10) || 8080,
-  //workspace: path.join(os.homedir(), '.openclaw', 'workspace'),
-  tavilyKey: process.env.TAVILY_API_KEY,
-  braveKey: process.env.BRAVE_API_KEY,
-  tunnelUrl: activeTunnelUrl,
-  //ngrokToken: process.env.NGROK_AUTHTOKEN,
-  signingSecret: process.env.URL_SIGNING_SECRET || crypto.randomBytes(32).toString('hex')
-};
-
 const TIMEOUT_MS = 10000;
 const MAX_QUERY_LENGTH = 2000;
 let requestCount = 0;
@@ -80,11 +76,11 @@ if (process.argv.includes('--version') || process.argv.includes('-v')) {
   process.exit(0);
 }
 
-const WORKSPACE_DIR = process.env.WORKSPACE_DIR || path.join(os.homedir(), '.openclaw', 'workspace');
+const WORKSPACE_DIR = getWorkspaceDir(GATEWAY_CONFIG.workspaceOverride);
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 
 function generateSignedUrl(filename, expirationMinutes = 60) {
-    if (!GATEWAY_CONFIG.tunnelUrl) {
+    if (!activeTunnelUrl) {
       throw new Error("PUBLIC_TUNNEL_URL is not configured.");
     }
     
@@ -94,28 +90,15 @@ function generateSignedUrl(filename, expirationMinutes = 60) {
     const expires = Date.now() + (expirationMinutes * 60 * 1000);
     const dataToSign = `${safeFilename}:${expires}`;
     
-    const signature = crypto.createHmac('sha256', GATEWAY_CONFIG.signingSecret)
+    const signature = crypto.createHmac('sha256', GATEWAY_CONFIG.secret)
                             .update(dataToSign)
                             .digest('hex');
                             
     return `${baseUrl}/${safeUrlName}?expires=${expires}&sig=${signature}`;
 }
 
-async function getSecurePath(requestedPath) {
-    const isAbsolutePath = path.isAbsolute(requestedPath);
-    const targetPath = isAbsolutePath ? requestedPath : path.join(WORKSPACE_DIR, requestedPath);
-    const resolvedPath = path.resolve(targetPath);
-    
-    // Mathematical boundary check to prevent partial directory matching traversal
-    const relativePath = path.relative(WORKSPACE_DIR, resolvedPath);
-    if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
-        throw new Error(`SECURITY ALERT: Path traversal attempt blocked.`);
-    }
-    return resolvedPath;
-}
-
 const server = new Server(
-    { name: "openclaw-syncralis", version: "2.2.0" },
+    { name: "openclaw-syncralis", version: pkg.version },
     { capabilities: { tools: {} } }
 );
 
@@ -187,21 +170,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (name === "share_files") {
         try {
             const { filePath, action = "read" } = args;
-            const securePath = await getSecurePath(filePath);
+            const securePath = await getSecurePath(WORKSPACE_DIR, filePath);
             const fileName = path.basename(securePath);
 
-            const stats = await fsPromises.stat(securePath);
-            if (!stats.isFile()) throw new Error(`Requested path is a directory.`);
-            if (stats.size > MAX_FILE_SIZE_BYTES) throw new Error(`File exceeds max allowed size.`);
-
-            const mimeType = mime.lookup(securePath) || 'application/octet-stream';
-
             if (action === "download") {
-                const signedLink = generateSignedUrl(fileName);
                 return {
                     content: [{
                         type: "text",
-                        text: `SUCCESS. Tell the user their file is ready and output exactly this URL: ${signedLink}`
+                        text: `SUCCESS. Tell the user their file is ready and output exactly this URL: ${generateSignedUrl(fileName)}`
                     }]
                 };
             }
