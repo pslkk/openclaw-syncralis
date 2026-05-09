@@ -3,11 +3,8 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import fsPromises from "fs/promises";
-import { createWriteStream, createReadStream } from "fs";
 import { Readable } from "stream";
 import path from "path";
-import os from "os";
 import http from "http";
 import mime from "mime-types";
 import mammoth from "mammoth";
@@ -54,7 +51,7 @@ if (!activeTunnelUrl) {
   } catch (error) {
     clearTimeout(timeoutId);
     if (error.name === 'AbortError') {
-      console.error(`\n\x1b[33m[Warning]\x1b[0m Ngrok auto-discovery timed out on port ${ngrokApiPort}.`);
+      console.error(`\n\x1b[33m[Warning]\x1b[0m Ngrok auto-discovery timed out on port ${GATEWAY_CONFIG.discoveryPort}.`);
     } else {
       console.error(`\n\x1b[33m[Warning]\x1b[0m PUBLIC_TUNNEL_URL is empty and local Ngrok was not detected.`);
     }
@@ -85,7 +82,7 @@ function generateSignedUrl(filename, expirationMinutes = 60) {
     
     const safeFilename = path.basename(filename);
     const safeUrlName = encodeURIComponent(safeFilename);
-    const baseUrl = GATEWAY_CONFIG.tunnelUrl.replace(/\/$/, "");
+    const baseUrl = activeTunnelUrl.replace(/\/$/, "");
     const expires = Date.now() + (expirationMinutes * 60 * 1000);
     const dataToSign = `${safeFilename}:${expires}`;
     
@@ -224,7 +221,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
             await ensureWorkspaceExists(WORKSPACE_DIR);
             
-            const fileStream = createWriteStream(targetPath);
+            const fileStream = createSafeWriteStream(targetPath);
             const webStream = Readable.fromWeb(response.body);
             let downloadedBytes = 0;
 
@@ -251,7 +248,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 }]
             };
         } catch (error) {
-            if (targetPath) await fsPromises.unlink(targetPath).catch(() => {});
+            if (targetPath) await deleteSafeFile(targetPath);
             return { isError: true, content: [{ type: "text", text: `Fetch Error: ${error.message}` }] };
         }
     } 
@@ -419,8 +416,7 @@ function startSecureFileServer() {
                 'Content-Length': size,
                 'Content-Disposition': `attachment; filename="${path.basename(securePath)}"` 
             });
-
-            createReadStream(securePath).pipe(res);
+            res.end(buffer);
 
         } catch (error) {
             console.error(`[File Server Security Alert] Blocked access attempt: ${error.message}`);
@@ -436,6 +432,7 @@ function startSecureFileServer() {
 
 async function main() {
     try {
+        await ensureWorkspaceExists(WORKSPACE_DIR);
         startSecureFileServer();
         const transport = new StdioServerTransport();
         await server.connect(transport);
