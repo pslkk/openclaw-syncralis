@@ -35,6 +35,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "dotenv": "^17.4.2",
+    "envalid": "^8.1.1",
     "mammoth": "^1.12.0",
     "mime-types": "^3.0.2",
     "pdf-parse": "^2.4.5"
@@ -42,7 +43,8 @@
   "overrides": {
     "@modelcontextprotocol/sdk": {
       "express-rate-limit": {
-        "ip-address": "^10.1.1"
+        "ip-address": "^10.1.1",
+        "hono": "^4.12.18"
       }
     }
   },
