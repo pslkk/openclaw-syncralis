@@ -9,8 +9,6 @@ import http from "http";
 import mime from "mime-types";
 import mammoth from "mammoth";
 import { createRequire } from "module";
-import dotenv from "dotenv";
-import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 
 import { GATEWAY_CONFIG } from './config.js';
