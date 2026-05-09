@@ -174,28 +174,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             const fileName = path.basename(securePath);
 
             if (action === "download") {
+                const signedLink = generateSignedUrl(fileName);
                 return {
                     content: [{
                         type: "text",
-                        text: `SUCCESS. Tell the user their file is ready and output exactly this URL: ${generateSignedUrl(fileName)}`
+                        text: `SUCCESS. Tell the user their file is ready and output exactly this URL: ${signedLink}`
                     }]
                 };
             }
 
-            const fileBuffer = await fsPromises.readFile(securePath);
+            const { buffer, mimeType } = await readSafeFile(securePath);
             if (mimeType.startsWith('image/')) {
-                return { content: [{ type: "image", data: fileBuffer.toString('base64'), mimeType: mimeType }] };
+                return { content: [{ type: "image", data: buffer.toString('base64'), mimeType }] };
             }
             if (mimeType === 'application/pdf') {
-                const pdfData = await pdf(fileBuffer);
+                const pdfData = await pdf(buffer);
                 return { content: [{ type: "text", text: pdfData.text }] };
             }
             if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-                const docxData = await mammoth.extractRawText({ buffer: fileBuffer });
+                const docxData = await mammoth.extractRawText({ buffer: buffer });
                 return { content: [{ type: "text", text: docxData.value }] };
             }
 
-            return { content: [{ type: "text", text: fileBuffer.toString('utf-8') }] };
+            return { content: [{ type: "text", text: buffer.toString('utf-8') }] };
 
         } catch (error) {
             return { isError: true, content: [{ type: "text", text: `Read Error: ${error.message}` }] };
@@ -207,7 +208,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         try {
             const { url, fileName, headers = {} } = args;
             const safeFileName = path.basename(fileName);
-            targetPath = path.join(WORKSPACE_DIR, safeFileName);
+            targetPath = await getSecurePath(WORKSPACE_DIR, safeFileName);
             
             const response = await fetch(url, { method: 'GET', headers: headers });
             if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -222,8 +223,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 }
             }
 
-            await fsPromises.mkdir(WORKSPACE_DIR, { recursive: true });
-
+            await ensureWorkspaceExists(WORKSPACE_DIR);
+            
             const fileStream = createWriteStream(targetPath);
             const webStream = Readable.fromWeb(response.body);
             let downloadedBytes = 0;
