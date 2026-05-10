@@ -71,6 +71,61 @@ The gateway needs a secure folder to store and manage files. We have designed th
 
 ### Choose the deployment method that matches your OpenClaw setup below:
 
+## 🔐 Advanced Configuration (The `.env` Method)
+
+If you prefer to maintain "Industry Grade" security and not keep your API keys exposed in your main `openclaw.json` file, you can securely configure the plugin using a standard `.env` file directly inside the extension's folder and remove the env block at mcp server configuration in `openclaw.json`.
+
+### 💻 Native OpenClaw (Local / NPM Installation)
+
+1. Navigate to the plugin's directory:
+
+   ```bash
+
+   cd ~/.openclaw/extensions/openclaw-syncralis
+
+   ```
+   
+3. Create and open the `.env` file:
+
+   ```bash
+
+   nano .env
+
+   ```
+   
+5. Add your API keys securely:
+
+   ```env
+
+   TAVILY_API_KEY=your_actual_key_here
+   BRAVE_API_KEY=your_actual_key_here
+
+   ```
+   
+7. Save the file (`Ctrl + O`, `Enter`, `Ctrl + X`) and restart your OpenClaw instance.
+
+### 🐳 Docker Environment
+
+1. Write your API keys directly into a new `.env` file using notepad:
+
+   
+
+3. Open a terminal session directly inside the gateway's plugin directory:
+
+   ```bash
+
+   docker exec -it openclaw_gateway sh -c "cd /home/node/.openclaw/extensions/openclaw-syncralis && /bin/sh"
+
+   ```
+   
+4. Restart your OpenClaw gateway to apply the secure variables:
+
+   ```bash
+
+   docker restart container_name
+
+   ```
+
 ### Option 1: Native NPM Setup (Without Docker)
 
 When running OpenClaw natively on your host machine, Syncralis spins up a secure local HTTP server bound strictly to localhost.
@@ -255,6 +310,54 @@ services:
 
 **Size Limits:** Syncralis enforces a hard limit of `50MB` for all file reads and downloads to prevent memory exhaustion. 
 
+
+## 🗑️ Uninstallation
+
+If you need to remove the plugin, follow the instructions for your specific environment below.
+
+### 💻 Native OpenClaw (Local / NPM Installation)
+
+**The Standard Method:**
+
+```bash
+
+openclaw plugins uninstall openclaw-syncralis
+
+```
+
+**The "Hard Reset" (If the CLI fails):**
+
+```bash
+
+rm -rf ~/.openclaw/extensions/openclaw-syncralis
+
+```
+
+### 🐳 Docker Environment
+
+**The Standard Method:**
+
+```bash
+
+docker exec -it container_name openclaw plugins uninstall openclaw-syncralis
+
+```
+
+**The "Hard Reset" (If the CLI fails):**
+
+```bash
+
+docker exec -it container_name rm -rf /home/node/.openclaw/extensions/openclaw-syncralis
+
+```
+
+### 🧹 Final Cleanup (Both Environments)
+
+After uninstalling via either method:
+
+1. Open your `openclaw.json` file.
+2. Delete the `openclaw-syncralis` blocks from both the `"plugins"` and `"mcp"` sections.
+3. Restart your OpenClaw environment (or run `docker restart container_name`) for a perfectly clean boot.
 
 
 ## 💬 Usage Examples (Prompts)
