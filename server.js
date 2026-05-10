@@ -23,6 +23,7 @@ import {
 } from './fileOps.js';
 
 let activeTunnelUrl = GATEWAY_CONFIG.tunnelUrlFallback;
+async function initializeTunnel() {
 if (!activeTunnelUrl) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 2000);
@@ -55,6 +56,7 @@ if (!activeTunnelUrl) {
     }
     console.error(`External download links will fail. Operating in Local-Only Mode.\n`);
   }
+}
 }
 
 const TIMEOUT_MS = 10000;
@@ -430,6 +432,7 @@ function startSecureFileServer() {
 
 async function main() {
     try {
+        await initializeTunnel();
         await ensureWorkspaceExists(WORKSPACE_DIR);
         startSecureFileServer();
         const transport = new StdioServerTransport();
