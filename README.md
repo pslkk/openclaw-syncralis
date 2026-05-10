@@ -17,7 +17,7 @@ Syncralis provides load-balanced web searching, secure file downloads, and mobil
 ***Path Boundary Enforcement:** Cryptographically verifies all file requests to prevent directory traversal attacks outside the designated workspace.
 
 
-## 🔑 Prerequisites & Free Tiers
+## 🔑 Requirements & API Keys (Free Tiers)
 
 Syncralis relies on three external services. Each of these providers offers a generous free tier for developers (subject to their respective Terms and Conditions):
 
@@ -107,7 +107,16 @@ When running OpenClaw natively on your host machine, Syncralis spins up a secure
           "WORKSPACE_DIR": "",
           "PUBLIC_TUNNEL_URL": "https://your-ngrok-url.ngrok-free.app",
           "NGROK_API_PORT": 4040,
-          "URL_SIGNING_SECRET": "your_custom_32_character_secret_here",
+          "URL_SIGNING_SECRET": "your_custom_32_character_secret_here"
+        }
+      }
+    }
+  },
+  "plugins": {
+    "entries": {
+      "openclaw-syncralis": {
+	"enabled": true,
+	"config": {
           "TAVILY_API_KEY": "your_tavily_key",
           "BRAVE_API_KEY": "your_brave_key"
         }
@@ -137,7 +146,16 @@ OpenClaw often executes tools as ephemeral child processes. In a containerized s
           "WORKSPACE_DIR": "",
           "PUBLIC_TUNNEL_URL": "https://your-static-domain.ngrok-free.app",
           "NGROK_API_PORT": 4040,
-          "URL_SIGNING_SECRET": "your_custom_32_character_secret_here",
+          "URL_SIGNING_SECRET": "your_custom_32_character_secret_here"
+        }
+      }
+    }
+  },
+  "plugins": {
+    "entries": {
+      "openclaw-syncralis": {
+        "enabled": true,
+        "config": {
           "TAVILY_API_KEY": "your_tavily_key",
           "BRAVE_API_KEY": "your_brave_key"
         }
