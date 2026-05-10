@@ -115,8 +115,8 @@ When running OpenClaw natively on your host machine, Syncralis spins up a secure
   "plugins": {
     "entries": {
       "openclaw-syncralis": {
-	"enabled": true,
-	"config": {
+        "enabled": true,
+        "config": {
           "TAVILY_API_KEY": "your_tavily_key",
           "BRAVE_API_KEY": "your_brave_key"
         }
