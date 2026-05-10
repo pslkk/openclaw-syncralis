@@ -4,7 +4,7 @@ import path from 'path';
 import mime from 'mime-types';
 import os from 'os';
 
-export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB limit
+export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 
 export const getWorkspaceDir = (overrideDir) => {
     return overrideDir || path.join(os.homedir(), '.openclaw', 'workspace');
