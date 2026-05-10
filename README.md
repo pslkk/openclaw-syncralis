@@ -100,13 +100,18 @@ When running OpenClaw natively on your host machine, Syncralis spins up a secure
   "mcp": {
     "servers": {
       "syncralis": {
-        "command": "openclaw-syncralis",
+        "command": "node",
+        "args": [
+          "/home/node/.openclaw/extensions/openclaw-syncralis/server.js"
+        ],
         "env": {
           "NODE_ENV": "production",
           "FILE_SERVER_HOST": "127.0.0.1",
           "WORKSPACE_DIR": "",
           "PUBLIC_TUNNEL_URL": "https://your-ngrok-url.ngrok-free.app",
           "NGROK_API_PORT": 4040,
+          "TAVILY_API_KEY": "your_tavily_key",
+          "BRAVE_API_KEY": "your_brave_key",
           "URL_SIGNING_SECRET": "your_custom_32_character_secret_here"
         }
       }
@@ -115,11 +120,7 @@ When running OpenClaw natively on your host machine, Syncralis spins up a secure
   "plugins": {
     "entries": {
       "openclaw-syncralis": {
-        "enabled": true,
-        "config": {
-          "TAVILY_API_KEY": "your_tavily_key",
-          "BRAVE_API_KEY": "your_brave_key"
-        }
+        "enabled": true
       }
     }
   }
@@ -139,13 +140,18 @@ OpenClaw often executes tools as ephemeral child processes. In a containerized s
   "mcp": {
     "servers": {
       "syncralis": {
-        "command": "openclaw-syncralis",
+        "command": "node",
+        "args": [
+          "/home/node/.openclaw/extensions/openclaw-syncralis/server.js"
+        ],
         "env": {
           "NODE_ENV": "production",
           "FILE_SERVER_HOST": "0.0.0.0",
           "WORKSPACE_DIR": "",
           "PUBLIC_TUNNEL_URL": "https://your-static-domain.ngrok-free.app",
           "NGROK_API_PORT": 4040,
+          "TAVILY_API_KEY": "your_tavily_key",
+          "BRAVE_API_KEY": "your_brave_key",
           "URL_SIGNING_SECRET": "your_custom_32_character_secret_here"
         }
       }
@@ -154,11 +160,7 @@ OpenClaw often executes tools as ephemeral child processes. In a containerized s
   "plugins": {
     "entries": {
       "openclaw-syncralis": {
-        "enabled": true,
-        "config": {
-          "TAVILY_API_KEY": "your_tavily_key",
-          "BRAVE_API_KEY": "your_brave_key"
-        }
+        "enabled": true
       }
     }
   }
@@ -231,6 +233,8 @@ services:
    image: ngrok/ngrok:latest
    container_name: ngrok_tunnel
    restart: unless-stopped
+   ports:
+     - "4040:4040"
    networks:
      - mcp_network
    command: http openclaw_gateway:8080 --url=https://<your-custom-domain>.ngrok-free.app --log=stdout
@@ -257,11 +261,11 @@ services:
 
 Once connected, you can ask your OpenClaw agent to perform complex I/O tasks:
 
-**"Search the web for the latest advancements in solid-state batteries."*
+**"Search the web for the latest advancements in solid-state batteries using syncralis mcp tool."*
 
-**"Download the PDF from \[URL] and save it as `report.pdf`."*
+**"Download the PDF from \[URL] and save it as `report.pdf` using syncralis mcp tool."*
 
-**"Generate a mobile download link for `report.pdf`."*
+**"Generate a mobile download link for `report.pdf` using syncralis mcp tool."*
 
 
 
