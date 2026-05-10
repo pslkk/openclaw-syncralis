@@ -69,79 +69,7 @@ The gateway needs a secure folder to store and manage files. We have designed th
 `WORKSPACE_DIR=/custom/path/to/workspace`
 
 
-**🔐 Advanced Configuration (The `.env` Method):**
-
-If you prefer to maintain "Industry Grade" security and not keep your API keys exposed in your main `openclaw.json` file, you can securely configure the plugin using a standard `.env` file directly inside the extension's folder and remove the env block at mcp server configuration in `openclaw.json`.
-
-**💻 Native OpenClaw (Local / NPM Installation):**
-
-1. Navigate to the plugin's directory:
-
-   ```bash
-
-   cd ~/.openclaw/extensions/openclaw-syncralis
-
-   ```
-   
-3. Create and open the `.env` file:
-
-   ```bash
-
-   nano .env
-
-   ```
-   
-5. Add your API keys securely:
-
-   ```env
-
-   NODE_ENV=production
-   WORKSPACE_DIR=""
-   PUBLIC_TUNNEL_URL="https://your-domain.ngrok-free.app"
-   NGROK_API_PORT=4040
-   URL_SIGNING_SECRET="your_custom_32_character_secret_here"
-   TAVILY_API_KEY=your_tavily_key_here
-   BRAVE_API_KEY=your_brave_key_here
-   FILE_SERVER_HOST=127.0.0.1
-
-   ```
-   
-7. Save the file (`Ctrl + O`, `Enter`, `Ctrl + X`) and restart your OpenClaw instance.
-
-**🐳 Docker Environment:**
-
-1. Write your API keys directly into a new `.env` file using notepad:
-
-   ```env
-   
-   NODE_ENV=production
-   WORKSPACE_DIR=""
-   PUBLIC_TUNNEL_URL="https://your-domain.ngrok-free.app"
-   NGROK_API_PORT=4040
-   URL_SIGNING_SECRET="your_custom_32_character_secret_here"
-   TAVILY_API_KEY=your_tavily_key_here
-   BRAVE_API_KEY=your_brave_key_here
-   FILE_SERVER_HOST=0.0.0.0
-
-   ```
-
-3. Open a terminal session directly inside the gateway's plugin directory:
-
-   ```bash
-
-   docker cp "C:/path/to/your/.env" container_name:/home/node/.openclaw/extensions/openclaw-syncralis/.env
-
-   ```
-   
-4. Restart your OpenClaw gateway to apply the secure variables:
-
-   ```bash
-
-   docker restart container_name
-
-   ```
-
-### Choose the deployment method that matches your OpenClaw setup below:
+#### Choose the deployment method that matches your OpenClaw setup below:
 
 **Option 1: Native NPM Setup (Without Docker):**
 
@@ -317,6 +245,78 @@ services:
        condition: service_healthy
 
 ```
+
+**🔐 Advanced Configuration (The `.env` Method):**
+
+If you prefer to maintain "Industry Grade" security and not keep your API keys exposed in your main `openclaw.json` file, you can securely configure the plugin using a standard `.env` file directly inside the extension's folder and remove the env block at mcp server configuration in `openclaw.json`.
+
+**💻 Native OpenClaw (Local / NPM Installation):**
+
+   1. Navigate to the plugin's directory:
+
+      ```bash
+
+      cd ~/.openclaw/extensions/openclaw-syncralis
+
+      ```
+   
+   2. Create and open the `.env` file:
+
+      ```bash
+
+      nano .env
+
+      ```
+   
+   3. Add your API keys securely:
+
+      ```env
+
+      NODE_ENV=production
+      WORKSPACE_DIR=""
+      PUBLIC_TUNNEL_URL="https://your-domain.ngrok-free.app"
+      NGROK_API_PORT=4040
+      URL_SIGNING_SECRET="your_custom_32_character_secret_here"
+      TAVILY_API_KEY=your_tavily_key_here
+      BRAVE_API_KEY=your_brave_key_here
+      FILE_SERVER_HOST=127.0.0.1
+   
+      ```
+   
+   4. Save the file (`Ctrl + O`, `Enter`, `Ctrl + X`) and restart your OpenClaw instance.
+
+**🐳 Docker Environment:**
+
+   1. Write your API keys directly into a new `.env` file using notepad:
+
+      ```env
+   
+      NODE_ENV=production
+      WORKSPACE_DIR=""
+      PUBLIC_TUNNEL_URL="https://your-domain.ngrok-free.app"
+      NGROK_API_PORT=4040
+      URL_SIGNING_SECRET="your_custom_32_character_secret_here"
+      TAVILY_API_KEY=your_tavily_key_here
+      BRAVE_API_KEY=your_brave_key_here
+      FILE_SERVER_HOST=0.0.0.0
+      
+      ```
+
+   2. Open a terminal session directly inside the gateway's plugin directory:
+
+      ```bash
+
+      docker cp "C:/path/to/your/.env" container_name:/home/node/.openclaw/extensions/openclaw-syncralis/.env
+
+      ```
+   
+   3. Restart your OpenClaw gateway to apply the secure variables:
+
+      ```bash
+
+      docker restart container_name
+
+      ```
 
 
 ## 🛡️ Security Parameters
