@@ -112,6 +112,8 @@ If you prefer to maintain "Industry Grade" security and not keep your API keys e
 
 1. Write your API keys directly into a new `.env` file using notepad:
 
+   ```env
+   
    NODE_ENV=production
    WORKSPACE_DIR=""
    PUBLIC_TUNNEL_URL="https://your-domain.ngrok-free.app"
@@ -120,6 +122,8 @@ If you prefer to maintain "Industry Grade" security and not keep your API keys e
    TAVILY_API_KEY=your_tavily_key_here
    BRAVE_API_KEY=your_brave_key_here
    FILE_SERVER_HOST=0.0.0.0
+
+   ```
 
 3. Open a terminal session directly inside the gateway's plugin directory:
 
