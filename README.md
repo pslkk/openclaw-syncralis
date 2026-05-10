@@ -69,13 +69,11 @@ The gateway needs a secure folder to store and manage files. We have designed th
 `WORKSPACE_DIR=/custom/path/to/workspace`
 
 
-### Choose the deployment method that matches your OpenClaw setup below:
-
-## 🔐 Advanced Configuration (The `.env` Method)
+**🔐 Advanced Configuration (The `.env` Method):**
 
 If you prefer to maintain "Industry Grade" security and not keep your API keys exposed in your main `openclaw.json` file, you can securely configure the plugin using a standard `.env` file directly inside the extension's folder and remove the env block at mcp server configuration in `openclaw.json`.
 
-### 💻 Native OpenClaw (Local / NPM Installation)
+**💻 Native OpenClaw (Local / NPM Installation):**
 
 1. Navigate to the plugin's directory:
 
@@ -97,24 +95,37 @@ If you prefer to maintain "Industry Grade" security and not keep your API keys e
 
    ```env
 
-   TAVILY_API_KEY=your_actual_key_here
-   BRAVE_API_KEY=your_actual_key_here
+   NODE_ENV=production
+   WORKSPACE_DIR=""
+   PUBLIC_TUNNEL_URL="https://your-domain.ngrok-free.app"
+   NGROK_API_PORT=4040
+   URL_SIGNING_SECRET="your_custom_32_character_secret_here"
+   TAVILY_API_KEY=your_tavily_key_here
+   BRAVE_API_KEY=your_brave_key_here
+   FILE_SERVER_HOST=127.0.0.1
 
    ```
    
 7. Save the file (`Ctrl + O`, `Enter`, `Ctrl + X`) and restart your OpenClaw instance.
 
-### 🐳 Docker Environment
+**🐳 Docker Environment:**
 
 1. Write your API keys directly into a new `.env` file using notepad:
 
-   
+   NODE_ENV=production
+   WORKSPACE_DIR=""
+   PUBLIC_TUNNEL_URL="https://your-domain.ngrok-free.app"
+   NGROK_API_PORT=4040
+   URL_SIGNING_SECRET="your_custom_32_character_secret_here"
+   TAVILY_API_KEY=your_tavily_key_here
+   BRAVE_API_KEY=your_brave_key_here
+   FILE_SERVER_HOST=0.0.0.0
 
 3. Open a terminal session directly inside the gateway's plugin directory:
 
    ```bash
 
-   docker exec -it openclaw_gateway sh -c "cd /home/node/.openclaw/extensions/openclaw-syncralis && /bin/sh"
+   docker cp "C:/path/to/your/.env" container_name:/home/node/.openclaw/extensions/openclaw-syncralis/.env
 
    ```
    
@@ -126,7 +137,9 @@ If you prefer to maintain "Industry Grade" security and not keep your API keys e
 
    ```
 
-### Option 1: Native NPM Setup (Without Docker)
+### Choose the deployment method that matches your OpenClaw setup below:
+
+**Option 1: Native NPM Setup (Without Docker):**
 
 When running OpenClaw natively on your host machine, Syncralis spins up a secure local HTTP server bound strictly to localhost.
 
@@ -183,7 +196,7 @@ When running OpenClaw natively on your host machine, Syncralis spins up a secure
   ```
 
 
-### Option 2: Docker Environment Setup (Recommended for Production)
+**Option 2: Docker Environment Setup (Recommended for Production):**
 
 OpenClaw often executes tools as ephemeral child processes. In a containerized setup, it is highly recommended to run openclaw alongside Ngrok to serve the workspace volume 24/7. This guarantees your download links remain active even after the MCP process shuts down.
 
@@ -223,7 +236,7 @@ OpenClaw often executes tools as ephemeral child processes. In a containerized s
   ```
 
 
-2. ### 🐳 Complete Docker Compose (Just an example only)
+2. 🐳 Complete Docker Compose (Just an example only):
 
 
 If you are running OpenClaw entirely inside Docker, here is a complete, production-ready `docker-compose.yml` template to get Syncralis and Ngrok running together seamlessly. 
@@ -315,9 +328,9 @@ services:
 
 If you need to remove the plugin, follow the instructions for your specific environment below.
 
-### 💻 Native OpenClaw (Local / NPM Installation)
+**💻 Native OpenClaw (Local / NPM Installation):**
 
-**The Standard Method:**
+**The Standard Method:*
 
 ```bash
 
@@ -325,7 +338,7 @@ openclaw plugins uninstall openclaw-syncralis
 
 ```
 
-**The "Hard Reset" (If the CLI fails):**
+**The "Hard Reset" (If the CLI fails):*
 
 ```bash
 
@@ -333,9 +346,9 @@ rm -rf ~/.openclaw/extensions/openclaw-syncralis
 
 ```
 
-### 🐳 Docker Environment
+**🐳 Docker Environment:**
 
-**The Standard Method:**
+**The Standard Method:*
 
 ```bash
 
@@ -343,7 +356,7 @@ docker exec -it container_name openclaw plugins uninstall openclaw-syncralis
 
 ```
 
-**The "Hard Reset" (If the CLI fails):**
+**The "Hard Reset" (If the CLI fails):*
 
 ```bash
 
@@ -351,7 +364,7 @@ docker exec -it container_name rm -rf /home/node/.openclaw/extensions/openclaw-s
 
 ```
 
-### 🧹 Final Cleanup (Both Environments)
+**🧹 Final Cleanup (Both Environments):**
 
 After uninstalling via either method:
 
