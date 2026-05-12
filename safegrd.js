@@ -3,6 +3,18 @@ import net from 'net';
 import http from 'http';
 import https from 'https';
 
+export function redactUrl(rawUrl) {
+    try {
+        const parsed = new URL(rawUrl);
+        if (parsed.username) parsed.username = '***';
+        if (parsed.password) parsed.password = '***';
+        if (parsed.search) parsed.search = '?***';
+        return parsed.toString();
+    } catch {
+        return '[REDACTED_INVALID_URL]';
+    }
+}
+
 const BLOCKED_IP_RANGES = [
     /^127\./,
     /^10\./,
@@ -114,7 +126,7 @@ export async function validateAndResolve(rawUrl) {
 
     if (net.isIP(hostname)) {
         if (isPrivateIP(hostname)) {
-            auditLog('SSRF_BLOCKED', { reason: 'direct_private_ip', ip: hostname, url: rawUrl });
+            auditLog('SSRF_BLOCKED', { reason: 'direct_private_ip', ip: hostname, url: redactUrl(rawUrl) });
             throw new Error(
                 `Blocked: direct connection to private/reserved IP "${hostname}" is not permitted.`
             );
@@ -142,7 +154,7 @@ export async function validateAndResolve(rawUrl) {
                 reason: 'dns_resolves_to_private',
                 hostname,
                 resolvedIP: address,
-                url: rawUrl,
+                url: redactUrl(rawUrl),
             });
             throw new Error(
                 `Blocked: "${hostname}" resolves to private/reserved IP "${address}".`
@@ -224,7 +236,7 @@ export async function secureFetch(rawUrl, extraHeaders = {}, redirectCount = 0) 
 
     const { hostname, pinnedIP, parsed } = await validateAndResolve(rawUrl);
 
-    auditLog('FETCH_ATTEMPT', { url: rawUrl, resolvedIP: pinnedIP, redirectCount });
+    auditLog('FETCH_ATTEMPT', { url: redactUrl(rawUrl), resolvedIP: pinnedIP, redirectCount });
 
     const response = await makePinnedRequest(
         rawUrl, pinnedIP, hostname, extraHeaders, parsed.protocol
@@ -238,7 +250,7 @@ export async function secureFetch(rawUrl, extraHeaders = {}, redirectCount = 0) 
         }
 
         const redirectUrl = new URL(location, rawUrl).toString();
-        auditLog('REDIRECT_FOLLOW', { from: rawUrl, to: redirectUrl, hop: redirectCount + 1 });
+        auditLog('REDIRECT_FOLLOW', { from: redactUrl(rawUrl), to: redactUrl(redirectUrl), hop: redirectCount + 1 });
 
         response.resume();
 
