@@ -28,6 +28,9 @@ import {
     secureFetch,
     streamToFile,
     auditLog,
+    redactUrl,
+    checkNoClobber,
+    commitDownload 
 } from './safegrd.js';
 
 let activeTunnelUrl = GATEWAY_CONFIG.tunnelUrlFallback;
@@ -213,6 +216,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     else if (name === "download_from_url") {
         let targetPath;
+        let tmpTargetPath;
+        let downloadSucceeded = false;
         try {
             checkRateLimit('download_from_url');
             const { url, fileName, headers = {} } = args;
@@ -220,13 +225,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             const safeFileName = path.basename(fileName);
             targetPath = await getSecurePath(WORKSPACE_DIR, safeFileName);
             
+            await checkNoClobber(targetPath, safeFileName);
+            const tmpFileName = `${safeFileName}.tmp`;
+            tmpTargetPath = await getSecurePath(WORKSPACE_DIR, tmpFileName);
+            
             const response = await secureFetch(url, safeHeaders);
+
+            const serverContentType = response.headers['content-type']; 
+            const expectedMimeType = mime.lookup(safeFileName);
+            if (serverContentType && expectedMimeType) {
+                const cleanServerType = serverContentType.split(';')[0].trim().toLowerCase();
+                if (cleanServerType !== expectedMimeType && cleanServerType !== 'application/octet-stream') {
+                    response.destroy(); 
+                    throw new Error(`SECURITY ALERT: MIME mismatch. Expected ${expectedMimeType}, received ${cleanServerType}. Download aborted.`);
+                }
+            }
             
             await ensureWorkspaceExists(WORKSPACE_DIR);
             
-            const fileStream = createSafeWriteStream(targetPath);
+            const fileStream = createSafeWriteStream(tmpTargetPath);
             await streamToFile(response, fileStream);
-            auditLog('DOWNLOAD_SUCCESS', { url, savedAs: targetPath });
+            await commitDownload(tmpTargetPath, targetPath);
+            downloadSucceeded = true;
+            auditLog('DOWNLOAD_SUCCESS', { url: redactUrl(url), savedAs: targetPath });
 
             return {
                 content: [{
@@ -235,7 +256,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 }]
             };
         } catch (error) {
-            if (targetPath) await deleteSafeFile(targetPath);
+            if (!downloadSucceeded && tmpTargetPath) {
+                await deleteSafeFile(tmpTargetPath).catch(() => {});
+            }
             auditLog('DOWNLOAD_FAILED', { error: error.message });
             return { isError: true, content: [{ type: "text", text: `Fetch Error: ${error.message}` }] };
         }
