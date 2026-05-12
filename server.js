@@ -19,7 +19,9 @@ import {
     readSafeFile, 
     createSafeWriteStream, 
     deleteSafeFile,
-    MAX_FILE_SIZE_BYTES
+    MAX_FILE_SIZE_BYTES,
+    checkNoClobber,
+    commitDownload
 } from './fileOps.js';
 
 import {
@@ -28,9 +30,7 @@ import {
     secureFetch,
     streamToFile,
     auditLog,
-    redactUrl,
-    checkNoClobber,
-    commitDownload 
+    redactUrl 
 } from './safegrd.js';
 
 let activeTunnelUrl = GATEWAY_CONFIG.tunnelUrlFallback;
