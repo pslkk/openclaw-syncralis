@@ -47,9 +47,9 @@ const BLOCKED_HEADER_NAMES = new Set([
 
 const MAX_REDIRECTS        = 3;
 const MAX_RESPONSE_BYTES   = 50 * 1024 * 1024;
-const REQUEST_TIMEOUT_MS   = 10_000;
+const REQUEST_TIMEOUT_MS   = 10000;
 const RATE_LIMIT_MAX       = 10;
-const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_WINDOW_MS = 60000;
 
 export function auditLog(event, details = {}) {
     const entry = {
@@ -177,18 +177,30 @@ function makePinnedRequest(rawUrl, pinnedIP, hostname, extraHeaders, protocol) {
             path:    parsed.pathname + parsed.search,
             method:  'GET',
             headers: {
-                'User-Agent': 'openclaw-syncralis-secure-fetch/1.0',
+                'User-Agent':  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
                 ...extraHeaders,
                 'Host': hostname,
             },
             
-            lookup: (_h, _opts, cb) => {
+            lookup: (lookupHostname, lookupOptions, lookupCallback) => {
+                const finalCb = typeof lookupOptions === 'function' ? lookupOptions : lookupCallback;
+                const opts = typeof lookupOptions === 'object' ? lookupOptions : {};
                 const family = net.isIPv6(pinnedIP) ? 6 : 4;
-                cb(null, pinnedIP, family);
+
+                if (opts.all) {
+                    finalCb(null, [{ address: pinnedIP, family }]);
+                } else {
+                    finalCb(null, pinnedIP, family);
+                }
             },
             rejectUnauthorized: true,
-            minVersion:         'TLSv1.2',
-            timeout:            REQUEST_TIMEOUT_MS,
+            minVersion: 'TLSv1.2',
+            timeout: REQUEST_TIMEOUT_MS,
         };
 
         const req = requestMod.request(options, resolve);
