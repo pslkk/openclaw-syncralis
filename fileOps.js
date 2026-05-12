@@ -44,3 +44,16 @@ export const createSafeWriteStream = (targetPath) => {
 export const deleteSafeFile = async (targetPath) => {
     await fsPromises.unlink(targetPath).catch(() => {});
 };
+
+export const checkNoClobber = async (securePath, safeFileName) => {
+    try {
+        await fsPromises.access(securePath);
+        throw new Error(`File "${safeFileName}" already exists. Overwrite strictly blocked.`);
+    } catch (err) {
+        if (err.code !== 'ENOENT') throw err; 
+    }
+};
+
+export const commitDownload = async (tmpPath, finalPath) => {
+    await fsPromises.rename(tmpPath, finalPath);
+};
