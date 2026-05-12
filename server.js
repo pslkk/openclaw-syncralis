@@ -22,6 +22,14 @@ import {
     MAX_FILE_SIZE_BYTES
 } from './fileOps.js';
 
+import {
+    checkRateLimit,
+    sanitizeHeaders,
+    secureFetch,
+    streamToFile,
+    auditLog,
+} from './safegrd.js';
+
 let activeTunnelUrl = GATEWAY_CONFIG.tunnelUrlFallback;
 async function initializeTunnel() {
 if (!activeTunnelUrl) {
@@ -165,6 +173,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     if (name === "share_files") {
         try {
+            checkRateLimit('share_files');
             const { filePath, action = "read" } = args;
             const securePath = await getSecurePath(WORKSPACE_DIR, filePath);
             const fileName = path.basename(securePath);
@@ -191,10 +200,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 const docxData = await mammoth.extractRawText({ buffer: buffer });
                 return { content: [{ type: "text", text: docxData.value }] };
             }
-
+            
+            auditLog('FILE_READ', { file: fileName, mimeType });
             return { content: [{ type: "text", text: buffer.toString('utf-8') }] };
 
         } catch (error) {
+            auditLog('SHARE_FILES_ERROR', { error: error.message });
             return { isError: true, content: [{ type: "text", text: `Read Error: ${error.message}` }] };
         }
     }
@@ -202,44 +213,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     else if (name === "download_from_url") {
         let targetPath;
         try {
+            checkRateLimit('download_from_url');
             const { url, fileName, headers = {} } = args;
+            const safeHeaders = sanitizeHeaders(headers);
             const safeFileName = path.basename(fileName);
             targetPath = await getSecurePath(WORKSPACE_DIR, safeFileName);
             
-            const response = await fetch(url, { method: 'GET', headers: headers });
-            if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-
-            const serverContentType = response.headers.get('content-type');
-            const expectedMimeType = mime.lookup(safeFileName);
-
-            if (serverContentType && expectedMimeType) {
-                const cleanServerType = serverContentType.split(';')[0].trim().toLowerCase();
-                if (cleanServerType !== expectedMimeType && cleanServerType !== 'application/octet-stream') {
-                    throw new Error(`SECURITY ALERT: MIME mismatch. Expected ${expectedMimeType}, received ${cleanServerType}. Download aborted.`);
-                }
-            }
-
+            const response = await secureFetch(url, safeHeaders);
+            
             await ensureWorkspaceExists(WORKSPACE_DIR);
             
             const fileStream = createSafeWriteStream(targetPath);
-            const webStream = Readable.fromWeb(response.body);
-            let downloadedBytes = 0;
-
-            await new Promise((resolve, reject) => {
-                webStream.on('data', (chunk) => {
-                    downloadedBytes += chunk.length;
-                    if (downloadedBytes > MAX_FILE_SIZE_BYTES) {
-                        webStream.destroy();
-                        fileStream.destroy();
-                        reject(new Error(`SECURITY ALERT: Payload exceeds maximum size. Download aborted.`));
-                    }
-                });
-
-                webStream.pipe(fileStream);
-                fileStream.on('finish', resolve);
-                fileStream.on('error', reject);
-                webStream.on('error', reject);
-            });
+            await streamToFile(response, fileStream);
+            auditLog('DOWNLOAD_SUCCESS', { url, savedAs: targetPath });
 
             return {
                 content: [{
@@ -249,31 +235,33 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             };
         } catch (error) {
             if (targetPath) await deleteSafeFile(targetPath);
+            auditLog('DOWNLOAD_FAILED', { error: error.message });
             return { isError: true, content: [{ type: "text", text: `Fetch Error: ${error.message}` }] };
         }
     } 
     
     else if (name === "web_search") {
-        let rawQuery = request.params.arguments?.query;
-        const tavilyKey = GATEWAY_CONFIG.tavilyKey;
-        const braveKey = GATEWAY_CONFIG.braveKey;
-
-        if (!rawQuery || typeof rawQuery !== 'string') {
-            return { isError: true, content: [{ type: "text", text: "Search failed: Query must be a valid string." }] };
-        }
-        if (!tavilyKey || !braveKey) {
-            return { isError: true, content: [{ type: "text", text: "Search failed: Server configuration error (Missing API Keys)." }] };
-        }
-
-        const query = rawQuery.trim().substring(0, MAX_QUERY_LENGTH);
-        if (query === '') {
-            return { isError: true, content: [{ type: "text", text: "Search failed: Query cannot be empty." }] };
-        }
-
-        const isBraveTurn = requestCount % 2 === 0;
-        requestCount++;
-
         try {
+            checkRateLimit('web_search');
+            let rawQuery = request.params.arguments?.query;
+            const tavilyKey = GATEWAY_CONFIG.tavilyKey;
+            const braveKey = GATEWAY_CONFIG.braveKey;
+
+            if (!rawQuery || typeof rawQuery !== 'string') {
+                return { isError: true, content: [{ type: "text", text: "Search failed: Query must be a valid string." }] };
+            }
+            if (!tavilyKey || !braveKey) {
+                return { isError: true, content: [{ type: "text", text: "Search failed: Server configuration error (Missing API Keys)." }] };
+            }
+
+            const query = rawQuery.trim().substring(0, MAX_QUERY_LENGTH);
+            if (query === '') {
+                return { isError: true, content: [{ type: "text", text: "Search failed: Query cannot be empty." }] };
+            }
+
+            const isBraveTurn = requestCount % 2 === 0;
+            requestCount++;
+
             let resultText = "";
             if (isBraveTurn) {
                 try {
@@ -291,6 +279,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             return { content: [{ type: "text", text: resultText }] };
 
         } catch (error) {
+            auditLog('SEARCH_FAILED', { error: error.message });
             return { isError: true, content: [{ type: "text", text: `Search Error: ${error.message}` }] };
         }
     }
