@@ -180,6 +180,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
             if (action === "download") {
                 const signedLink = generateSignedUrl(fileName);
+                auditLog('SHARE_LINK_GENERATED', { file: fileName });
                 return {
                     content: [{
                         type: "text",
@@ -406,6 +407,8 @@ function startSecureFileServer() {
                 'Content-Disposition': `attachment; filename="${path.basename(securePath)}"` 
             });
             res.end(buffer);
+
+            auditLog('FILE_SERVED', { file: path.basename(securePath), size, mimeType });
 
         } catch (error) {
             console.error(`[File Server Security Alert] Blocked access attempt: ${error.message}`);
