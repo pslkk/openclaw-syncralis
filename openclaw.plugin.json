@@ -2,7 +2,7 @@
   "id": "openclaw-syncralis",
   "name": "openclaw-syncralis",
   "displayName": "Syncralis Gateway",
-  "version": "2.3.7",
+  "version": "2.4.1",
   "description": "An industry-grade file sharing, secure download, and load-balanced gateway designed for high-availability OpenClaw environments.",
   "type": "gateway",
   "main": "./server.js",
