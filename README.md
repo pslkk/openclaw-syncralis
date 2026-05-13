@@ -37,18 +37,7 @@ Install the package globally via your terminal:
 
 npm install -g openclaw-syncralis
 
-# OR via ClawHub: clawhub package install openclaw-syncralis
-
 # OR via Openclaw: openclaw plugins install clawhub:openclaw-syncralis
-
-```
-
-### 🔑 Authentication
-Before configuring the server, authenticate your local environment with the registry to ensure a secure handshake:
-
-```bash
-
-clawhub login pslkk/openclaw-syncralis
 
 ```
 
