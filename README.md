@@ -374,6 +374,8 @@ Once connected, you can ask your OpenClaw agent to perform complex I/O tasks:
 
 **"Download the PDF from \[URL] and save it as `report.pdf` using syncralis mcp tool."*
 
+**"Download `Tesla Model Y` pdf from genuine sources and save it as `tesla_model_y.pdf` using syncralis mcp tool."*
+
 **"Generate a mobile download link for `report.pdf` using syncralis mcp tool."*
 
 
