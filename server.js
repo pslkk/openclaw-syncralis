@@ -33,6 +33,9 @@ import {
     redactUrl 
 } from './safegrd.js';
 
+const MAX_DOWNLOAD_ATTEMPTS = 2;
+const downloadAttemptTracker = new Map();
+
 let activeTunnelUrl = GATEWAY_CONFIG.tunnelUrlFallback;
 async function initializeTunnel() {
 if (!activeTunnelUrl) {
@@ -100,7 +103,8 @@ function generateSignedUrl(filename, expirationMinutes = 60) {
     const signature = crypto.createHmac('sha256', GATEWAY_CONFIG.secret)
                             .update(dataToSign)
                             .digest('hex');
-                            
+
+    downloadAttemptTracker.set(signature, { attempts: 0, filename: safeFilename });
     return `${baseUrl}/${safeUrlName}?expires=${expires}&sig=${signature}`;
 }
 
@@ -421,6 +425,19 @@ function startSecureFileServer() {
                 throw new Error("Cryptographic signature mismatch.");
             }
 
+
+            const tracker = downloadAttemptTracker.get(providedSig);
+            if (!tracker) {
+                throw new Error("Unrecognised link — please generate a new download URL.");
+            }
+            if (tracker.attempts >= MAX_DOWNLOAD_ATTEMPTS) {
+                auditLog('DOWNLOAD_LIMIT_EXCEEDED', { file: safeFilename, attempts: tracker.attempts });
+                res.writeHead(429, { 'Content-Type': 'text/plain' });
+                return res.end(`Download limit reached. This link allows a maximum of ${MAX_DOWNLOAD_ATTEMPTS} download(s).\nKindly generate a new link.`);
+            }
+            tracker.attempts += 1;
+            auditLog('DOWNLOAD_ATTEMPT', { file: safeFilename, attempt: tracker.attempts, maxAllowed: MAX_DOWNLOAD_ATTEMPTS });
+            
             const securePath = await getSecurePath(WORKSPACE_DIR, requestedFile);
             const { buffer, mimeType, size } = await readSafeFile(securePath);
             
