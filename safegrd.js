@@ -32,6 +32,7 @@ const BLOCKED_IP_RANGES = [
     /^233\.252\./,
     /^240\./,
     /^255\.255\.255\.255$/,
+    /^0\.0\.0\.0$/,
     /^::1$/,                                 // Loopback
     /^::$/,                                  // Unspecified
     /^fc00:/i,                               // Unique local (RFC 4193)
@@ -94,7 +95,23 @@ export function checkRateLimit(toolName) {
     }
 }
 
+function extractEmbeddedIPv4(ip) {
+    const dotted = /^::(?:ffff:(?:0:)?)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/i.exec(ip);
+    if (dotted) return dotted[1];
+ 
+    const hexWord = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i.exec(ip);
+    if (hexWord) {
+        const hi = parseInt(hexWord[1], 16);
+        const lo = parseInt(hexWord[2], 16);
+        return `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`;
+    }
+ 
+    return null;
+}
+
 export function isPrivateIP(ip) {
+    const embedded = extractEmbeddedIPv4(ip);
+    if (embedded !== null) return isPrivateIP(embedded);
     return BLOCKED_IP_RANGES.some(r => r.test(ip));
 }
 export async function validateAndResolve(rawUrl) {
