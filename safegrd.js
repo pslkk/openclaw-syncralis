@@ -38,6 +38,7 @@ const BLOCKED_IP_RANGES = [
     /^fc00:/i,                               // Unique local (RFC 4193)
     /^fd[0-9a-f]{2}:/i,                      // Unique local (fd prefix)
     /^fe80:/i,                               // Link-local
+    /^::ffff:0:/i,
     /^ff[0-9a-f]{2}:/i,                      // Multicast
     /^64:ff9b:/,                             // IPv4-mapped (RFC 6052)
     /^2002:/,                                // 6to4
