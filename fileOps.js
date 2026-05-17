@@ -15,21 +15,47 @@ export const ensureWorkspaceExists = async (workspaceDir) => {
 };
 
 export const getSecurePath = async (workspaceDir, requestedPath) => {
+    const realWorkspaceDir = await fsPromises.realpath(workspaceDir);
     const isAbsolutePath = path.isAbsolute(requestedPath);
-    const targetPath = isAbsolutePath ? requestedPath : path.join(workspaceDir, requestedPath);
+    const targetPath = isAbsolutePath ? requestedPath : path.join(realWorkspaceDir, requestedPath);
     const resolvedPath = path.resolve(targetPath);
    
-    const relativePath = path.relative(workspaceDir, resolvedPath);
+    const relativePath = path.relative(realWorkspaceDir, resolvedPath);
     if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
         throw new Error(`SECURITY ALERT: Path traversal attempt blocked.`);
     }
-    return resolvedPath;
+
+    const safeRoot = realWorkspaceDir.endsWith(path.sep)
+        ? realWorkspaceDir
+        : realWorkspaceDir + path.sep;
+
+    try {
+        const realTarget = await fsPromises.realpath(resolvedPath);
+        if (realTarget !== realWorkspaceDir && !realTarget.startsWith(safeRoot)) {
+            throw new Error(`SECURITY ALERT: Symlink traversal blocked — path resolves outside workspace.`);
+        }
+        return realTarget;
+    } catch (err) {
+        if (err.code !== 'ENOENT') throw err;
+        try {
+            const realParent = await fsPromises.realpath(path.dirname(resolvedPath));
+            if (realParent !== realWorkspaceDir && !realParent.startsWith(safeRoot)) {
+                throw new Error(`SECURITY ALERT: Symlink traversal blocked — parent dir resolves outside workspace.`);
+            }
+        } catch (parentErr) {
+            if (parentErr.code !== 'ENOENT') throw parentErr;
+        }
+        return resolvedPath;
+    }
 };
 
 export const readSafeFile = async (securePath) => {
-    const stats = await fsPromises.stat(securePath);
-    if (!stats.isFile()) throw new Error(`Requested path is a directory.`);
-    if (stats.size > MAX_FILE_SIZE_BYTES) throw new Error(`File exceeds max allowed size.`);
+    const lstats = await fsPromises.lstat(securePath);
+    if (lstats.isSymbolicLink()) {
+        throw new Error(`SECURITY ALERT: Symlink access denied.`);
+    }
+    if (!lstats.isFile()) throw new Error(`Requested path is a directory.`);
+    if (lstats.size > MAX_FILE_SIZE_BYTES) throw new Error(`File exceeds max allowed size.`);
 
     const buffer = await fsPromises.readFile(securePath);
     const mimeType = mime.lookup(securePath) || 'application/octet-stream';
@@ -47,7 +73,7 @@ export const deleteSafeFile = async (targetPath) => {
 
 export const checkNoClobber = async (securePath, safeFileName) => {
     try {
-        await fsPromises.access(securePath);
+        await fsPromises.lstat(securePath);
         throw new Error(`File "${safeFileName}" already exists. Overwrite strictly blocked.`);
     } catch (err) {
         if (err.code !== 'ENOENT') throw err; 
