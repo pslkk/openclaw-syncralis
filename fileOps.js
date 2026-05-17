@@ -60,7 +60,7 @@ export const readSafeFile = async (securePath) => {
     const buffer = await fsPromises.readFile(securePath);
     const mimeType = mime.lookup(securePath) || 'application/octet-stream';
     
-    return { buffer, mimeType, size: stats.size };
+    return { buffer, mimeType, size: lstats.size };
 };
 
 export const createSafeWriteStream = (targetPath) => {
