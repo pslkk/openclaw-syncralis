@@ -8,7 +8,7 @@ Syncralis provides load-balanced web searching, secure file downloads, and mobil
 
 ## 🚀 Key Features
 
-***Stateless File Sharing:** Securely generates public Ngrok download links for files inside your workspace with a maximum of 2 download attempts until expiry.
+***Stateless File Sharing:** Securely generates public Ngrok download links for files inside your workspace with a maximum of 3 download attempts until expiry.
 
 ***Load-Balanced Web Search:** Intelligently alternates between Tavily and Brave Search APIs to prevent rate-limiting and ensure high availability.
 
@@ -314,7 +314,9 @@ If you prefer to maintain "Industry Grade" security and not keep your API keys e
 
 * `TIMEOUT_MS`: Defaults to 10000ms (10 seconds) to prevent hung API calls.
 
-* `MAX_DOWNLOAD_ATTEMPTS`: Defaults to 2 attempts with same generated download link.
+* `MAX_DOWNLOAD_ATTEMPTS`: Defaults to 3 attempts with same generated download link.
+
+* `CONFIRM_TOKEN_TTL_MS`: Defaults to 5 minutes and specifies the time window within which the user must verify and confirm the correct filename to generate the download link.
 
 **Size Limits:** Syncralis enforces a hard limit of `50MB` for all file reads and downloads to prevent memory exhaustion. 
 
