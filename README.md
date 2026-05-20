@@ -316,7 +316,7 @@ If you prefer to maintain "Industry Grade" security and not keep your API keys e
 
 * `MAX_DOWNLOAD_ATTEMPTS`: Defaults to 3 attempts with same generated download link.
 
-* `CONFIRM_TOKEN_TTL_MS`: Defaults to 5 minutes and specifies the time window within which the user must verify and confirm the correct filename to generate the download link.
+* `CONFIRM_TOKEN_TTL_MS`: Defaults to 5 minutes and specifies the time window within which the user must verify and confirm the correct file to generate a secure download link.
 
 **Size Limits:** Syncralis enforces a hard limit of `50MB` for all file reads and downloads to prevent memory exhaustion. 
 
