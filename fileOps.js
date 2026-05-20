@@ -49,6 +49,18 @@ export const getSecurePath = async (workspaceDir, requestedPath) => {
     }
 };
 
+export const statSafeFile = async (securePath) => {
+    const lstats = await fsPromises.lstat(securePath);
+    if (lstats.isSymbolicLink()) {
+        throw new Error('SECURITY ALERT: Symlink access denied.');
+    }
+    if (!lstats.isFile()) {
+        throw new Error('Requested path is not a regular file.');
+    }
+    const mimeType = mime.lookup(securePath) || 'application/octet-stream';
+    return { size: lstats.size, mtime: lstats.mtime, mimeType };
+};
+
 export const readSafeFile = async (securePath) => {
     const lstats = await fsPromises.lstat(securePath);
     if (lstats.isSymbolicLink()) {
