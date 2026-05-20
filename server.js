@@ -3,7 +3,6 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { Readable } from "stream";
 import path from "path";
 import http from "http";
 import mime from "mime-types";
@@ -15,11 +14,11 @@ import { GATEWAY_CONFIG } from './config.js';
 import { 
     getWorkspaceDir, 
     ensureWorkspaceExists, 
-    getSecurePath, 
+    getSecurePath,
+    statSafeFile,
     readSafeFile, 
     createSafeWriteStream, 
     deleteSafeFile,
-    MAX_FILE_SIZE_BYTES,
     checkNoClobber,
     commitDownload
 } from './fileOps.js';
@@ -33,8 +32,81 @@ import {
     redactUrl 
 } from './safegrd.js';
 
-const MAX_DOWNLOAD_ATTEMPTS = 2;
+const MAX_DOWNLOAD_ATTEMPTS = 3;
 const downloadAttemptTracker = new Map();
+
+const CONFIRM_TOKEN_TTL_MS = 5 * 60 * 1000;
+const pendingConfirmations  = new Map();
+
+function issueConfirmationToken(filename, resolvedPath) {
+    const payload = Buffer.from(
+        JSON.stringify({ filename, resolvedPath, issuedAt: Date.now() })
+    ).toString('base64url');
+
+    const sig = crypto.createHmac('sha256', GATEWAY_CONFIG.secret)
+                      .update(payload)
+                      .digest('hex');
+    
+    const token = `${payload}.${sig}`;
+
+    pendingConfirmations.set(token, { filename, resolvedPath, issuedAt: Date.now() });
+
+    setTimeout(() => pendingConfirmations.delete(token), CONFIRM_TOKEN_TTL_MS + 1000);
+    return token;
+}
+
+function consumeConfirmationToken(token, expectedFilename) {
+    if (typeof token !== 'string' || !token.includes('.')) {
+        throw new Error('Confirmation token is malformed.');
+    }
+
+    const dotIdx  = token.lastIndexOf('.');
+    const payload = token.slice(0, dotIdx);
+    const sig = token.slice(dotIdx + 1);
+    
+    const expectedSig = crypto.createHmac('sha256', GATEWAY_CONFIG.secret)
+                              .update(payload)
+                              .digest('hex');
+    
+    const sigBuf = Buffer.from(sig, 'hex');
+    const expBuf = Buffer.from(expectedSig, 'hex');
+    
+    if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+        auditLog('CONFIRM_TOKEN_INVALID_SIG', { expectedFilename });
+        throw new Error('Confirmation token signature is invalid.');
+    }
+
+    if (!pendingConfirmations.has(token)) {
+        auditLog('CONFIRM_TOKEN_REPLAYED_OR_EXPIRED', { expectedFilename });
+        throw new Error('Confirmation token has already been used or has expired.');
+    }
+
+    let data;
+    try {
+        data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf-8'));
+    } catch {
+        throw new Error('Confirmation token payload is corrupted.');
+    }
+    
+    if (Date.now() - data.issuedAt > CONFIRM_TOKEN_TTL_MS) {
+        pendingConfirmations.delete(token);
+        throw new Error(`Confirmation token expired after ${CONFIRM_TOKEN_TTL_MS / 60000} minutes.`);
+    }
+    
+    if (data.filename !== expectedFilename) {
+        auditLog('CONFIRM_TOKEN_FILE_MISMATCH', {
+            tokenFile:     data.filename,
+            requestedFile: expectedFilename,
+        });
+        throw new Error(
+            `Confirmation token was issued for "${data.filename}", not "${expectedFilename}". ` +
+            `Generate a new preview for the correct file.`
+        );
+    }
+    
+    pendingConfirmations.delete(token);
+    return data;
+}
 
 let activeTunnelUrl = GATEWAY_CONFIG.tunnelUrlFallback;
 async function initializeTunnel() {
@@ -118,7 +190,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         tools: [
             {
                 name: "share_files",
-                description: "Handles reading and sharing files. Trigger this tool and set action to 'download' if a link or URL is requested.",
+                description: [
+                    'Reads or shares workspace files.  Three actions are available:',
+                    "  'read'     — return file contents inline (no link generated).",
+                    "  'preview'  — REQUIRED first step before sharing.  Returns file metadata",
+                    '               (name, size, type, modified) and a short-lived confirmationToken.',
+                    '               Present ALL metadata to the user and ask for explicit approval',
+                    '               before proceeding.  Never skip this step.',
+                    "  'download' — generate a public download link.  Requires the confirmationToken",
+                    "               returned by a prior 'preview' call for the same file.",
+                    '               A link CANNOT be generated without a valid token.',
+                ].join('\n'),
                 inputSchema: {
                     type: "object",
                     properties: {
@@ -128,11 +210,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                         },
                         action: {
                             type: "string",
-                            enum: ["read", "download"],
-                            description: "Use 'read' for text contents. Use 'download' for a URL link."
+                            enum: ["read", "preview", "download"],
+                            description: "read | preview | download.  Always call 'preview' before 'download'."
+                        },
+                        confirmationToken: {
+                            type: 'string',
+                            description: "Required for action=download. The token returned by the preceding 'preview' call for this exact file."
                         }
                     },
-                    required: ["filePath"]
+                    required: ["filePath", "action"]
                 }
             },
             {
@@ -181,11 +267,45 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (name === "share_files") {
         try {
             checkRateLimit('share_files');
-            const { filePath, action = "read" } = args;
+            const { filePath, action = "read", confirmationToken } = args;
             const securePath = await getSecurePath(WORKSPACE_DIR, filePath);
             const fileName = path.basename(securePath);
 
+            if (action === 'preview') {
+                const { size, mtime, mimeType } = await statSafeFile(securePath);
+                const token = issueConfirmationToken(fileName, securePath);
+                auditLog('SHARE_PREVIEW', { file: fileName, size });
+                return {
+                    content: [{
+                        type: 'text',
+                        text: JSON.stringify({
+                            status: 'AWAITING_CONFIRMATION',
+                            filename: fileName,
+                            sizeBytes: size,
+                            sizeHuman: `${(size / 1024).toFixed(1)} KB`,
+                            mimeType,
+                            modifiedAt: mtime.toISOString(),
+                            confirmationToken: token,
+                            tokenExpiresInSec: CONFIRM_TOKEN_TTL_MS / 1000,
+                            instruction:
+                                'Present filename, size, type, and modified date to the user. ' +
+                                'Ask them to explicitly confirm this is the correct file before ' +
+                                "calling action=download with the confirmationToken.",
+                        }, null, 2),
+                    }],
+                };
+            }
+
             if (action === "download") {
+                if (!confirmationToken) {
+                    throw new Error(
+                        'action=download requires a confirmationToken. ' +
+                        "Call action=preview first, present the file details to the user, " +
+                        "and only proceed once they have explicitly confirmed the correct file."
+                    );
+                }
+                consumeConfirmationToken(confirmationToken, fileName);
+                
                 const signedLink = generateSignedUrl(fileName);
                 auditLog('SHARE_LINK_GENERATED', { file: fileName });
                 return {
@@ -214,7 +334,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         } catch (error) {
             auditLog('SHARE_FILES_ERROR', { error: error.message });
-            return { isError: true, content: [{ type: "text", text: `Read Error: ${error.message}` }] };
+            return { isError: true, content: [{ type: "text", text: `Error: ${error.message}` }] };
         }
     }
 
@@ -393,7 +513,6 @@ function startSecureFileServer() {
                 return res.end('Method Not Allowed');
             }
 
-            //const requestedFile = decodeURIComponent(req.url.slice(1).split('?')[0]);
             const reqUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
             const requestedFile = decodeURIComponent(reqUrl.pathname.slice(1));
             if (!requestedFile) {
@@ -466,9 +585,9 @@ async function main() {
     try {
         await initializeTunnel();
         await ensureWorkspaceExists(WORKSPACE_DIR);
-        startSecureFileServer();
         const transport = new StdioServerTransport();
         await server.connect(transport);
+        startSecureFileServer();
         console.error("[System] openclaw-syncralis MCP running securely");
     } catch (error) {
         console.error("[Fatal] Server connection failed:", error);
