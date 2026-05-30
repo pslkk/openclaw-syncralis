@@ -56,7 +56,7 @@ if (!activeTunnelUrl) {
         );
         if (httpsTunnel) {
           activeTunnelUrl = httpsTunnel.public_url;
-          console.log(`\n\x1b[32m[System]\x1b[0m Auto-discovered active Ngrok tunnel: ${activeTunnelUrl}\n`);
+          console.error(`\n\x1b[32m[System]\x1b[0m Auto-discovered active Ngrok tunnel: ${activeTunnelUrl}\n`);
         }
       }
     }
@@ -555,8 +555,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 return { isError: true, content: [{ type: "text", text: "Search failed: Query cannot be empty." }] };
             }
 
-            const isBraveTurn = requestCount === 0;
-            requestCount = (requestCount + 1) % 2;
+            const isBraveTurn = (requestCount++ % 2) === 0;
 
             let resultText;
             if (isBraveTurn) {
@@ -689,7 +688,10 @@ function startSecureFileServer() {
             
             // Strictly enforce GET requests
             if (req.method !== 'GET') {
-                res.writeHead(405);
+                res.writeHead(405, {
+                    'Content-Type': 'text/plain',
+                    Allow: 'GET',
+                });
                 return res.end('Method Not Allowed');
             }
 
@@ -702,7 +704,14 @@ function startSecureFileServer() {
                 return res.end('Too Many Requests. Please wait before retrying.');
             }
 
-            const reqUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+            let reqUrl;
+            try {
+                reqUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+            } catch {
+                res.writeHead(400, { 'Content-Type': 'text/plain' });
+                return res.end('Bad Request');
+            }
+            
             const requestedFile = decodeURIComponent(reqUrl.pathname.slice(1));
             if (!requestedFile) {
                 res.writeHead(400);
@@ -724,7 +733,9 @@ function startSecureFileServer() {
             }
             
             if (Date.now() > expires) {
-                throw new Error("This secure link has expired.");
+                auditLog('LINK_EXPIRED', { requestId, ip: clientIp });
+                res.writeHead(410, { 'Content-Type': 'text/plain' });
+                return res.end('Gone: this secure link has expired. Please generate a new one.');
             }
 
             const safeFilename = path.basename(requestedFile);
@@ -742,7 +753,9 @@ function startSecureFileServer() {
             const expectedSigBuffer = decodeHmacBuffer(expectedSig, HMAC_BYTE_LENGTH, 'expected.sig');
 
             if (providedSigBuffer.length !== expectedSigBuffer.length || !crypto.timingSafeEqual(providedSigBuffer, expectedSigBuffer)) {
-                throw new Error("Cryptographic signature mismatch.");
+                auditLog('SIGNATURE_MISMATCH', { file: safeFilename, requestId, ip: clientIp });
+                res.writeHead(403, { 'Content-Type': 'text/plain' });
+                return res.end('Forbidden');
             }
 
             const tracker = downloadAttemptTracker.get(providedSig);
@@ -760,7 +773,7 @@ function startSecureFileServer() {
             auditLog('DOWNLOAD_ATTEMPT', { file: safeFilename, attempt: tracker.attempts, maxAllowed: MAX_DOWNLOAD_ATTEMPTS });
             
             const securePath = await getSecurePath(WORKSPACE_DIR, requestedFile);
-            const { mimeType, size } = await readSafeFile(securePath);
+            const { mimeType, size } = await statSafeFile(securePath);
             
             res.writeHead(200, {
                 'Content-Type': mimeType,
