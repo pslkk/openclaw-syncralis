@@ -2,6 +2,7 @@ import fsPromises from 'fs/promises';
 import fs from 'fs';
 import path from 'path';
 import mime from 'mime-types';
+import { pipeline } from 'stream/promises';
 import os from 'os';
 
 export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
@@ -75,12 +76,40 @@ export const readSafeFile = async (securePath) => {
     return { buffer, mimeType, size: lstats.size };
 };
 
+export const streamSafeFile = async (securePath, writableStream) => {
+    if (!writableStream || typeof writableStream.write !== 'function') {
+        throw new TypeError('writableStream must be a Writable stream.');
+    }
+
+    const lstats = await fsPromises.lstat(securePath);
+
+    if (lstats.isSymbolicLink()) {
+        throw new Error('SECURITY ALERT: Symlink access denied.');
+    }
+    if (!lstats.isFile()) {
+        throw new Error('Requested path is not a regular file.');
+    }
+    if (lstats.size > MAX_FILE_SIZE_BYTES) {
+        throw new Error(
+            `File size (${(lstats.size / 1_048_576).toFixed(1)} MB) exceeds the ` +
+            `${MAX_FILE_SIZE_BYTES / 1_048_576} MB maximum.`
+        );
+    }
+
+    const readStream = fs.createReadStream(securePath);
+    return pipeline(readStream, writableStream);
+};
+
 export const createSafeWriteStream = (targetPath) => {
     return fs.createWriteStream(targetPath);
 };
 
 export const deleteSafeFile = async (targetPath) => {
-    await fsPromises.unlink(targetPath).catch(() => {});
+    try {
+        await fsPromises.unlink(targetPath);
+    } catch (err) {
+        if (err.code !== 'ENOENT') throw err;
+    }
 };
 
 export const checkNoClobber = async (securePath, safeFileName) => {
