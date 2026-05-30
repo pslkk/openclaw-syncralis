@@ -760,39 +760,118 @@ function startSecureFileServer() {
             auditLog('DOWNLOAD_ATTEMPT', { file: safeFilename, attempt: tracker.attempts, maxAllowed: MAX_DOWNLOAD_ATTEMPTS });
             
             const securePath = await getSecurePath(WORKSPACE_DIR, requestedFile);
-            const { buffer, mimeType, size } = await readSafeFile(securePath);
+            const { mimeType, size } = await readSafeFile(securePath);
             
             res.writeHead(200, {
                 'Content-Type': mimeType,
                 'Content-Length': size,
-                'Content-Disposition': `attachment; filename="${path.basename(securePath)}"` 
+                'Content-Disposition': buildContentDisposition(path.basename(securePath)),
+                'X-Request-Id': requestId
             });
-            res.end(buffer);
 
-            auditLog('FILE_SERVED', { file: path.basename(securePath), size, mimeType });
+            try {
+                await streamSafeFile(securePath, res);
+            } catch (pipeErr) {
+                if (
+                    pipeErr.code === 'EPIPE' ||
+                    pipeErr.code === 'ERR_STREAM_PREMATURE_CLOSE'
+                ) {
+                    console.error(
+                        `[System] Client disconnected mid-transfer. ` +
+                        `File: ${safeFilename}, RequestId: ${requestId}, IP: ${clientIp}`
+                    );
+                    return;
+                }
+                throw pipeErr;
+            }
+
+            auditLog('FILE_SERVED', { file: path.basename(securePath), size, mimeType, ip: clientIp, requestId, durationMs: Date.now() - startMs });
 
         } catch (error) {
-            console.error(`[File Server Security Alert] Blocked access attempt: ${error.message}`);
-            res.writeHead(404);
-            res.end('File not found or access securely blocked.');
+            console.error(
+                `[File Server Error] RequestId: ${requestId}, IP: ${clientIp}, ` +
+                `Error: ${error.message}`
+            );
+            if (!res.headersSent) {
+                res.writeHead(404, { 'Content-Type': 'text/plain' });
+                return res.end('Not Found');
+            }
         }
+    });
+
+    fileServer.maxConnections   = HTTP_MAX_CONNECTIONS;
+    fileServer.keepAliveTimeout = HTTP_KEEP_ALIVE_MS;
+    fileServer.headersTimeout   = HTTP_HEADERS_TIMEOUT;
+    fileServer.requestTimeout   = HTTP_REQUEST_TIMEOUT;
+
+    fileServer.on('connection', (socket) => {
+        activeConnections.add(socket);
+        socket.once('close', () => activeConnections.delete(socket));
+    });
+
+    fileServer.on('error', (err) => {
+        console.error(`[HTTP Server Error] ${err.message} (code: ${err.code})`);
     });
 
     fileServer.listen(PORT, HOST, () => {
         console.error(`[System] Native Secure File Server bound internally to ${HOST}:${PORT}`);
     });
+
+    fileServerRef = fileServer;
 }
+
+let isShuttingDown = false;
+
+function gracefulShutdown(signal) {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    console.error(`[System] Shutdown initiated. Signal: ${signal}, Open connections: ${activeConnections.size}`);
+
+    clearInterval(gcInterval);
+
+    const deadline = setTimeout(() => {
+        console.warn('[Warning] Graceful shutdown deadline exceeded. Forcing exit.');
+        process.exit(1);
+    }, SHUTDOWN_DEADLINE_MS);
+    deadline.unref();
+
+    fileServerRef?.close(() => console.error('[System] HTTP server closed.'));
+
+    for (const socket of activeConnections) socket.destroy();
+
+    setImmediate(() => {
+        console.error('[System] Shutdown complete.');
+        clearTimeout(deadline);
+        process.exit(0);
+    });
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
+
+process.on('unhandledRejection', (reason) => {
+    const detail = reason instanceof Error
+        ? `${reason.message}\n${reason.stack}`
+        : String(reason);
+    console.error(`[Unhandled Rejection] ${detail}`);
+});
+
+process.on('uncaughtException', (err) => {
+    console.error(`[Fatal] Uncaught exception: ${err.message}\n${err.stack}`);
+    process.exit(1);
+});
 
 async function main() {
     try {
         await initializeTunnel();
         await ensureWorkspaceExists(WORKSPACE_DIR);
+        startGc();
+        startSecureFileServer();
         const transport = new StdioServerTransport();
         await server.connect(transport);
-        startSecureFileServer();
-        console.error("[System] openclaw-syncralis MCP running securely");
+        console.error(`[System] openclaw-syncralis v${pkg.version} running. Workspace: ${WORKSPACE_DIR}`);
     } catch (error) {
-        console.error("[Fatal] Server connection failed:", error);
+        console.error(`[Fatal] Startup failed: ${error.message}\n${error.stack}`);
         process.exit(1);
     }
 }
