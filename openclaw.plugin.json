@@ -2,8 +2,8 @@
   "id": "openclaw-syncralis",
   "name": "openclaw-syncralis",
   "displayName": "Syncralis Gateway",
-  "version": "2.6.1",
-  "description": "An industry-grade file sharing, secure download, and load-balanced gateway designed for high-availability OpenClaw environments.",
+  "version": "2.7.0",
+  "description": "An industry-grade MCP gateway for OpenClaw environments providing three capabilities: (1) secure workspace file sharing with HMAC-signed time-limited download links via Ngrok tunnel, (2) authenticated URL-to-workspace file downloads with MIME validation, and (3) load-balanced web search across Tavily and Brave with circuit-breaker failover. Requires outbound internet access and an optional Ngrok tunnel for public download links.",
   "type": "gateway",
   "main": "./server.js",
   "extensions": [
