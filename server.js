@@ -180,7 +180,7 @@ function consumeConfirmationToken(token, expectedFilename) {
     const sigBuf = decodeHmacBuffer(sig, HMAC_BYTE_LENGTH, 'token.sig');
     const expBuf = decodeHmacBuffer(expectedSig, HMAC_BYTE_LENGTH, 'expected.sig');
     
-    if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+    if (!crypto.timingSafeEqual(sigBuf, expBuf)) {
         auditLog('CONFIRM_TOKEN_INVALID_SIG', { expectedFilename });
         throw new Error('Confirmation token signature is invalid.');
     }
@@ -714,7 +714,7 @@ function startSecureFileServer() {
             
             const requestedFile = decodeURIComponent(reqUrl.pathname.slice(1));
             if (!requestedFile) {
-                res.writeHead(400);
+                res.writeHead(400, { 'Content-Type': 'text/plain' });
                 return res.end('Bad Request');
             }
 
@@ -752,7 +752,7 @@ function startSecureFileServer() {
             const providedSigBuffer = decodeHmacBuffer(providedSig, HMAC_BYTE_LENGTH, 'provided.sig');
             const expectedSigBuffer = decodeHmacBuffer(expectedSig, HMAC_BYTE_LENGTH, 'expected.sig');
 
-            if (providedSigBuffer.length !== expectedSigBuffer.length || !crypto.timingSafeEqual(providedSigBuffer, expectedSigBuffer)) {
+            if (!crypto.timingSafeEqual(providedSigBuffer, expectedSigBuffer)) {
                 auditLog('SIGNATURE_MISMATCH', { file: safeFilename, requestId, ip: clientIp });
                 res.writeHead(403, { 'Content-Type': 'text/plain' });
                 return res.end('Forbidden');
