@@ -16,7 +16,8 @@ import {
     ensureWorkspaceExists, 
     getSecurePath,
     statSafeFile,
-    readSafeFile, 
+    readSafeFile,
+    streamSafeFile,
     createSafeWriteStream, 
     deleteSafeFile,
     checkNoClobber,
@@ -32,81 +33,7 @@ import {
     redactUrl 
 } from './safegrd.js';
 
-const MAX_DOWNLOAD_ATTEMPTS = 3;
-const downloadAttemptTracker = new Map();
-
-const CONFIRM_TOKEN_TTL_MS = 5 * 60 * 1000;
-const pendingConfirmations  = new Map();
-
-function issueConfirmationToken(filename, resolvedPath) {
-    const payload = Buffer.from(
-        JSON.stringify({ filename, resolvedPath, issuedAt: Date.now() })
-    ).toString('base64url');
-
-    const sig = crypto.createHmac('sha256', GATEWAY_CONFIG.secret)
-                      .update(payload)
-                      .digest('hex');
-    
-    const token = `${payload}.${sig}`;
-
-    pendingConfirmations.set(token, { filename, resolvedPath, issuedAt: Date.now() });
-
-    setTimeout(() => pendingConfirmations.delete(token), CONFIRM_TOKEN_TTL_MS + 1000);
-    return token;
-}
-
-function consumeConfirmationToken(token, expectedFilename) {
-    if (typeof token !== 'string' || !token.includes('.')) {
-        throw new Error('Confirmation token is malformed.');
-    }
-
-    const dotIdx  = token.lastIndexOf('.');
-    const payload = token.slice(0, dotIdx);
-    const sig = token.slice(dotIdx + 1);
-    
-    const expectedSig = crypto.createHmac('sha256', GATEWAY_CONFIG.secret)
-                              .update(payload)
-                              .digest('hex');
-    
-    const sigBuf = Buffer.from(sig, 'hex');
-    const expBuf = Buffer.from(expectedSig, 'hex');
-    
-    if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
-        auditLog('CONFIRM_TOKEN_INVALID_SIG', { expectedFilename });
-        throw new Error('Confirmation token signature is invalid.');
-    }
-
-    if (!pendingConfirmations.has(token)) {
-        auditLog('CONFIRM_TOKEN_REPLAYED_OR_EXPIRED', { expectedFilename });
-        throw new Error('Confirmation token has already been used or has expired.');
-    }
-
-    let data;
-    try {
-        data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf-8'));
-    } catch {
-        throw new Error('Confirmation token payload is corrupted.');
-    }
-    
-    if (Date.now() - data.issuedAt > CONFIRM_TOKEN_TTL_MS) {
-        pendingConfirmations.delete(token);
-        throw new Error(`Confirmation token expired after ${CONFIRM_TOKEN_TTL_MS / 60000} minutes.`);
-    }
-    
-    if (data.filename !== expectedFilename) {
-        auditLog('CONFIRM_TOKEN_FILE_MISMATCH', {
-            tokenFile:     data.filename,
-            requestedFile: expectedFilename,
-        });
-        throw new Error(
-            `Confirmation token was issued for "${data.filename}", not "${expectedFilename}". ` +
-            `Generate a new preview for the correct file.`
-        );
-    }
-    
-    pendingConfirmations.delete(token);
-    return data;
-}
+const WORKSPACE_DIR = getWorkspaceDir(GATEWAY_CONFIG.workspaceOverride);
 
 let activeTunnelUrl = GATEWAY_CONFIG.tunnelUrlFallback;
 async function initializeTunnel() {
@@ -145,10 +72,6 @@ if (!activeTunnelUrl) {
 }
 }
 
-const TIMEOUT_MS = 10000;
-const MAX_QUERY_LENGTH = 2000;
-let requestCount = 0;
-
 const require = createRequire(import.meta.url);
 const pdf = require("pdf-parse");
 const pkg = require("./package.json");
@@ -159,7 +82,233 @@ if (process.argv.includes('--version') || process.argv.includes('-v')) {
   process.exit(0);
 }
 
-const WORKSPACE_DIR = getWorkspaceDir(GATEWAY_CONFIG.workspaceOverride);
+const TIMEOUT_MS = 10000;
+const MAX_QUERY_LENGTH = 2000;
+
+const MAX_DOWNLOAD_ATTEMPTS = 3;
+const CONFIRM_TOKEN_TTL_MS = 5 * 60 * 1000;
+
+const TOKEN_MAX_BYTES = 8192;
+const HMAC_BYTE_LENGTH = 32;
+
+const HTTP_MAX_CONNECTIONS = 200;
+const HTTP_KEEP_ALIVE_MS = 65000;
+const HTTP_HEADERS_TIMEOUT = 66000;
+const HTTP_REQUEST_TIMEOUT = 30000;
+const HTTP_BODY_TIMEOUT = 5000;
+
+const IP_RATE_WINDOW_MS = 60000;
+const IP_RATE_MAX_REQS = 20;
+
+const CB_FAILURE_THRESHOLD = 5;
+const CB_RESET_TIMEOUT_MS = 60000;
+
+const GC_INTERVAL_MS = 10 * 60000;
+const SHUTDOWN_DEADLINE_MS = 10000;
+
+const SECURITY_HEADERS = Object.freeze({
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'X-XSS-Protection': '0',
+    'Referrer-Policy': 'no-referrer',
+    'Permissions-Policy': 'interest-cohort=()',
+    'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+    'Pragma': 'no-cache',
+    'Content-Security-Policy': "default-src 'none'",
+    'X-Server-Version': pkg.version
+});
+
+let requestCount = 0;
+
+const pendingConfirmations  = new Map();
+const downloadAttemptTracker = new Map();
+
+function generateRequestId() {
+    return crypto.randomBytes(8).toString('hex');
+}
+
+function buildContentDisposition(filename) {
+    const ascii   = filename.replace(/[^\x20-\x7E]/g, '_').replace(/["\\;,]/g, '_');
+    const encoded = encodeURIComponent(filename);
+    return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
+}
+
+function decodeHmacBuffer(hexStr, expectedBytes, label) {
+    if (typeof hexStr !== 'string' || hexStr.length !== expectedBytes * 2) {
+        throw new Error(`${label}: invalid HMAC format.`);
+    }
+    const buf = Buffer.from(hexStr, 'hex');
+    if (buf.length !== expectedBytes) {
+        throw new Error(`${label}: HMAC decode produced unexpected length.`);
+    }
+    return buf;
+}
+
+function issueConfirmationToken(filename, resolvedPath) {
+    const payload = Buffer.from(
+        JSON.stringify({ filename, resolvedPath, issuedAt: Date.now() })
+    ).toString('base64url');
+
+    const sig = crypto.createHmac('sha256', GATEWAY_CONFIG.secret)
+                      .update(payload)
+                      .digest('hex');
+    
+    const token = `${payload}.${sig}`;
+
+    pendingConfirmations.set(token, { filename, resolvedPath, issuedAt: Date.now() });
+
+    setTimeout(() => pendingConfirmations.delete(token), CONFIRM_TOKEN_TTL_MS + 2000);
+    return token;
+}
+
+function consumeConfirmationToken(token, expectedFilename) {
+    if (typeof token !== 'string' || Buffer.byteLength(token, 'utf8') > TOKEN_MAX_BYTES) {
+        throw new Error('Confirmation token is malformed or exceeds maximum length.');
+    }
+
+    const dotIdx  = token.lastIndexOf('.');
+    if (dotIdx < 1) {
+        throw new Error('Confirmation token is malformed.');
+    }
+    const payload = token.slice(0, dotIdx);
+    const sig = token.slice(dotIdx + 1);
+    
+    const expectedSig = crypto.createHmac('sha256', GATEWAY_CONFIG.secret)
+                              .update(payload)
+                              .digest('hex');
+    
+    const sigBuf = decodeHmacBuffer(sig, HMAC_BYTE_LENGTH, 'token.sig');
+    const expBuf = decodeHmacBuffer(expectedSig, HMAC_BYTE_LENGTH, 'expected.sig');
+    
+    if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+        auditLog('CONFIRM_TOKEN_INVALID_SIG', { expectedFilename });
+        throw new Error('Confirmation token signature is invalid.');
+    }
+
+    if (!pendingConfirmations.has(token)) {
+        auditLog('CONFIRM_TOKEN_REPLAYED_OR_EXPIRED', { expectedFilename });
+        throw new Error('Confirmation token has already been used or has expired.');
+    }
+
+    let data;
+    try {
+        data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf-8'));
+    } catch {
+        throw new Error('Confirmation token payload is corrupted.');
+    }
+    
+    if (Date.now() - data.issuedAt > CONFIRM_TOKEN_TTL_MS) {
+        pendingConfirmations.delete(token);
+        throw new Error(`Confirmation token expired after ${CONFIRM_TOKEN_TTL_MS / 60000} minutes.`);
+    }
+    
+    if (data.filename !== expectedFilename) {
+        auditLog('CONFIRM_TOKEN_FILE_MISMATCH', {
+            tokenFile: data.filename,
+            requestedFile: expectedFilename,
+        });
+        throw new Error(
+            `Confirmation token was issued for "${data.filename}", not "${expectedFilename}". ` +
+            `Generate a new preview for the correct file.`
+        );
+    }
+    
+    pendingConfirmations.delete(token);
+    return data;
+}
+
+class CircuitBreaker {
+    #name;
+    #failures = 0;
+    #state    = 'CLOSED';
+    #nextTry  = 0;
+
+    constructor(name) { this.#name = name; }
+
+    get name()  { return this.#name; }
+    get state() { return this.#state; }
+
+    isOpen() {
+        if (this.#state === 'OPEN') {
+            if (Date.now() >= this.#nextTry) {
+                this.#state = 'HALF_OPEN';
+                console.error(`[System] Circuit half-open for provider: ${this.#name}`);
+                return false;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    onSuccess() {
+        if (this.#state !== 'CLOSED') {
+            console.error(`[System] Circuit closed (recovered) for provider: ${this.#name}`);
+        }
+        this.#failures = 0;
+        this.#state    = 'CLOSED';
+    }
+
+    onFailure() {
+        this.#failures += 1;
+        if (this.#failures >= CB_FAILURE_THRESHOLD) {
+            this.#state   = 'OPEN';
+            this.#nextTry = Date.now() + CB_RESET_TIMEOUT_MS;
+            console.warn(
+                `[Warning] Circuit opened for provider: ${this.#name} ` +
+                `(${this.#failures} failures). Retrying in ${CB_RESET_TIMEOUT_MS / 1000}s.`
+            );
+        }
+    }
+}
+
+const breakers = {
+    tavily: new CircuitBreaker('tavily'),
+    brave:  new CircuitBreaker('brave'),
+};
+
+const ipRateBuckets = new Map();
+
+function checkIpRateLimit(ip) {
+    const now    = Date.now();
+    let   bucket = ipRateBuckets.get(ip);
+
+    if (!bucket || now - bucket.windowStart >= IP_RATE_WINDOW_MS) {
+        bucket = { count: 0, windowStart: now };
+        ipRateBuckets.set(ip, bucket);
+    }
+
+    bucket.count += 1;
+    return bucket.count <= IP_RATE_MAX_REQS;
+}
+
+let gcInterval;
+
+function startGc() {
+    gcInterval = setInterval(() => {
+        const now = Date.now();
+        let   n   = 0;
+
+        for (const [k, v] of pendingConfirmations) {
+            if (now - v.issuedAt > CONFIRM_TOKEN_TTL_MS + 5_000) {
+                pendingConfirmations.delete(k); n++;
+            }
+        }
+        for (const [k, v] of downloadAttemptTracker) {
+            if (v.expiresAt && now > v.expiresAt + 5_000) {
+                downloadAttemptTracker.delete(k); n++;
+            }
+        }
+        for (const [k, v] of ipRateBuckets) {
+            if (now - v.windowStart > IP_RATE_WINDOW_MS * 3) {
+                ipRateBuckets.delete(k); n++;
+            }
+        }
+
+        if (n > 0) console.error(`[GC] Evicted ${n} stale entries.`);
+    }, GC_INTERVAL_MS);
+
+    gcInterval.unref();
+}
 
 function generateSignedUrl(filename, expirationMinutes = 60) {
     if (!activeTunnelUrl) {
@@ -176,7 +325,7 @@ function generateSignedUrl(filename, expirationMinutes = 60) {
                             .update(dataToSign)
                             .digest('hex');
 
-    downloadAttemptTracker.set(signature, { attempts: 0, filename: safeFilename });
+    downloadAttemptTracker.set(signature, { attempts: 0, filename: safeFilename, expiresAt: expires });
     return `${baseUrl}/${safeUrlName}?expires=${expires}&sig=${signature}`;
 }
 
@@ -305,7 +454,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                     );
                 }
                 consumeConfirmationToken(confirmationToken, fileName);
-                
                 const signedLink = generateSignedUrl(fileName);
                 auditLog('SHARE_LINK_GENERATED', { file: fileName });
                 return {
@@ -407,23 +555,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 return { isError: true, content: [{ type: "text", text: "Search failed: Query cannot be empty." }] };
             }
 
-            const isBraveTurn = requestCount % 2 === 0;
-            requestCount++;
+            const isBraveTurn = requestCount === 0;
+            requestCount = (requestCount + 1) % 2;
 
-            let resultText = "";
+            let resultText;
             if (isBraveTurn) {
-                try {
-                    resultText = await executeSearchAttempt(query, braveKey, fetchBrave);
-                } catch (err) {
-                    resultText = await executeSearchAttempt(query, tavilyKey, fetchTavily);
-                }
+                resultText = await executeSearchAttempt(query, braveKey, 'brave', fetchBrave) ?? await executeSearchAttempt(query, tavilyKey, 'tavily', fetchTavily);
             } else {
-                try {
-                    resultText = await executeSearchAttempt(query, tavilyKey, fetchTavily);
-                } catch (err) {
-                    resultText = await executeSearchAttempt(query, braveKey, fetchBrave);
-                }
+                resultText = await executeSearchAttempt(query, tavilyKey, 'tavily', fetchTavily) ?? await executeSearchAttempt(query, braveKey, 'brave', fetchBrave);
             }
+
+            if (resultText === null) {
+                return { isError: true, content: [{ type: 'text', text: 'Search failed: all providers are currently unavailable.' }] };
+            }
+            
             return { content: [{ type: "text", text: resultText }] };
 
         } catch (error) {
@@ -435,15 +580,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     throw new Error(`Tool not found: ${name}`);
 });
 
-async function executeSearchAttempt(query, apiKey, fetchFn) {
+async function executeSearchAttempt(query, apiKey, breakerKey, fetchFn) {
+    const breaker = breakers[breakerKey];
+    if (breaker.isOpen()) {
+        console.warn(`[Warning] Search circuit open for provider: ${breakerKey}`);
+        return null;
+    }
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
         const result = await fetchFn(query, apiKey, controller.signal);
         clearTimeout(timeoutId);
+        breaker.onSuccess();
         return result;
     } catch (error) {
         clearTimeout(timeoutId);
+        breaker.onFailure();
         if (error.name === 'AbortError') {
             throw new Error(`Network timeout (${TIMEOUT_MS / 1000}s).`);
         }
@@ -501,16 +653,53 @@ async function fetchBrave(query, apiKey, signal) {
     return resultText;
 }
 
+let fileServerRef = null;
+const activeConnections = new Set();
+
 function startSecureFileServer() {
     const PORT = GATEWAY_CONFIG.port;
     const HOST = GATEWAY_CONFIG.host || '127.0.0.1';
     
     const fileServer = http.createServer(async (req, res) => {
+        const requestId = req.headers['x-request-id']?.slice(0, 64) || generateRequestId();
+        const startMs   = Date.now();
+        const clientIp  = (
+            req.headers['x-forwarded-for']?.split(',')[0].trim() ||
+            req.socket?.remoteAddress ||
+            'unknown'
+        );
+
+        for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.setHeader(k, v);
+        res.setHeader('X-Request-Id', requestId);
+
         try {
+            if (req.url === '/health' || req.url === '/health/') {
+                const body = JSON.stringify({
+                    status:    'ok',
+                    version:   pkg.version,
+                    uptime:    process.uptime(),
+                    timestamp: new Date().toISOString(),
+                });
+                res.writeHead(200, {
+                    'Content-Type':   'application/json',
+                    'Content-Length': Buffer.byteLength(body),
+                });
+                return res.end(body);
+            }
+            
             // Strictly enforce GET requests
             if (req.method !== 'GET') {
                 res.writeHead(405);
                 return res.end('Method Not Allowed');
+            }
+
+            if (!checkIpRateLimit(clientIp)) {
+                auditLog('HTTP_RATE_LIMITED', { ip: clientIp, requestId });
+                res.writeHead(429, {
+                    'Content-Type': 'text/plain',
+                    'Retry-After':  String(Math.ceil(IP_RATE_WINDOW_MS / 1000)),
+                });
+                return res.end('Too Many Requests. Please wait before retrying.');
             }
 
             const reqUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
@@ -520,37 +709,50 @@ function startSecureFileServer() {
                 return res.end('Bad Request');
             }
 
-            const expires = reqUrl.searchParams.get('expires');
+            const rawExpires = reqUrl.searchParams.get('expires');
             const providedSig = reqUrl.searchParams.get('sig');
 
-            if (!expires || !providedSig) {
-                throw new Error("Missing cryptographic signature.");
+            if (!rawExpires || !providedSig) {
+                res.writeHead(400, { 'Content-Type': 'text/plain' });
+                return res.end('Bad Request: missing cryptographic parameters.');
             }
 
-            if (Date.now() > parseInt(expires, 10)) {
+            const expires = parseInt(rawExpires, 10);
+            if (!Number.isFinite(expires) || expires <= 0) {
+                res.writeHead(400, { 'Content-Type': 'text/plain' });
+                return res.end('Bad Request: malformed expiry parameter.');
+            }
+            
+            if (Date.now() > expires) {
                 throw new Error("This secure link has expired.");
             }
 
-            const safeFilename = path.basename(requestedFile); 
+            const safeFilename = path.basename(requestedFile);
+            if (!safeFilename || safeFilename !== requestedFile) {
+                auditLog('PATH_TRAVERSAL_BLOCKED', { file: requestedFile, requestId, ip: clientIp });
+                res.writeHead(400, { 'Content-Type': 'text/plain' });
+                return res.end('Bad Request: invalid file path.');
+            }
             const dataToVerify = `${safeFilename}:${expires}`;
             const expectedSig = crypto.createHmac('sha256', GATEWAY_CONFIG.secret)
                                       .update(dataToVerify)
                                       .digest('hex');
 
-            const providedSigBuffer = Buffer.from(providedSig);
-            const expectedSigBuffer = Buffer.from(expectedSig);
+            const providedSigBuffer = decodeHmacBuffer(providedSig, HMAC_BYTE_LENGTH, 'provided.sig');
+            const expectedSigBuffer = decodeHmacBuffer(expectedSig, HMAC_BYTE_LENGTH, 'expected.sig');
 
             if (providedSigBuffer.length !== expectedSigBuffer.length || !crypto.timingSafeEqual(providedSigBuffer, expectedSigBuffer)) {
                 throw new Error("Cryptographic signature mismatch.");
             }
 
-
             const tracker = downloadAttemptTracker.get(providedSig);
             if (!tracker) {
-                throw new Error("Unrecognised link — please generate a new download URL.");
+                auditLog('UNKNOWN_LINK', { file: safeFilename, requestId, ip: clientIp });
+                res.writeHead(404, { 'Content-Type': 'text/plain' });
+                return res.end('Not Found: unrecognised link — please generate a new download URL.');
             }
             if (tracker.attempts >= MAX_DOWNLOAD_ATTEMPTS) {
-                auditLog('DOWNLOAD_LIMIT_EXCEEDED', { file: safeFilename, attempts: tracker.attempts });
+                auditLog('DOWNLOAD_LIMIT_EXCEEDED', { file: safeFilename, attempts: tracker.attempts, ip: clientIp, requestId });
                 res.writeHead(429, { 'Content-Type': 'text/plain' });
                 return res.end(`Download limit reached. This link allows a maximum of ${MAX_DOWNLOAD_ATTEMPTS} download(s).\nKindly generate a new link.`);
             }
