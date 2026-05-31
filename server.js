@@ -76,7 +76,6 @@ const require = createRequire(import.meta.url);
 const pdf = require("pdf-parse");
 const pkg = require("./package.json");
 
-// Check for version flags before starting the server
 if (process.argv.includes('--version') || process.argv.includes('-v')) {
   console.log(`openclaw-syncralis v${pkg.version}`);
   process.exit(0);
