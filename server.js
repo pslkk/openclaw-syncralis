@@ -82,6 +82,22 @@ if (process.argv.includes('--version') || process.argv.includes('-v')) {
   process.exit(0);
 }
 
+function validateConfig() {
+    if (!GATEWAY_CONFIG.secret ||
+        Buffer.byteLength(String(GATEWAY_CONFIG.secret), 'utf8') < 32) {
+        console.error('[Fatal] GATEWAY_SECRET must be at least 32 bytes of entropy.');
+        process.exit(1);
+    }
+    const port = Number(GATEWAY_CONFIG.port);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+        console.error(`[Fatal] Invalid port: ${GATEWAY_CONFIG.port}`);
+        process.exit(1);
+    }
+    if (!GATEWAY_CONFIG.tavilyKey || !GATEWAY_CONFIG.braveKey) {
+        console.warn('[Warning] One or more search API keys are missing. web_search will be degraded.');
+    }
+}
+
 const TIMEOUT_MS = 10000;
 const MAX_QUERY_LENGTH = 2000;
 
@@ -875,6 +891,7 @@ process.on('uncaughtException', (err) => {
 });
 
 async function main() {
+    validateConfig();
     try {
         await initializeTunnel();
         await ensureWorkspaceExists(WORKSPACE_DIR);
