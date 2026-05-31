@@ -7,15 +7,27 @@ import os from 'os';
 
 export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 
+function assertNonEmptyString(value, name) {
+    if (typeof value !== 'string' || value.trim() === '') {
+        throw new TypeError(
+            `${name} must be a non-empty string (received ${JSON.stringify(value)}).`
+        );
+    }
+}
+
 export const getWorkspaceDir = (overrideDir) => {
+    if (overrideDir != null) assertNonEmptyString(overrideDir, 'overrideDir');
     return overrideDir || path.join(os.homedir(), '.openclaw', 'workspace');
 };
 
 export const ensureWorkspaceExists = async (workspaceDir) => {
+    assertNonEmptyString(workspaceDir, 'workspaceDir');
     await fsPromises.mkdir(workspaceDir, { recursive: true });
 };
 
 export const getSecurePath = async (workspaceDir, requestedPath) => {
+    assertNonEmptyString(workspaceDir, 'workspaceDir');
+    assertNonEmptyString(requestedPath, 'requestedPath');
     const realWorkspaceDir = await fsPromises.realpath(workspaceDir);
     const isAbsolutePath = path.isAbsolute(requestedPath);
     const targetPath = isAbsolutePath ? requestedPath : path.join(realWorkspaceDir, requestedPath);
@@ -51,6 +63,7 @@ export const getSecurePath = async (workspaceDir, requestedPath) => {
 };
 
 export const statSafeFile = async (securePath) => {
+    assertNonEmptyString(securePath, 'securePath');
     const lstats = await fsPromises.lstat(securePath);
     if (lstats.isSymbolicLink()) {
         throw new Error('SECURITY ALERT: Symlink access denied.');
@@ -63,6 +76,7 @@ export const statSafeFile = async (securePath) => {
 };
 
 export const readSafeFile = async (securePath) => {
+    assertNonEmptyString(securePath, 'securePath');
     const lstats = await fsPromises.lstat(securePath);
     if (lstats.isSymbolicLink()) {
         throw new Error(`SECURITY ALERT: Symlink access denied.`);
@@ -77,6 +91,7 @@ export const readSafeFile = async (securePath) => {
 };
 
 export const streamSafeFile = async (securePath, writableStream) => {
+    assertNonEmptyString(securePath, 'securePath');
     if (!writableStream || typeof writableStream.write !== 'function') {
         throw new TypeError('writableStream must be a Writable stream.');
     }
@@ -101,10 +116,12 @@ export const streamSafeFile = async (securePath, writableStream) => {
 };
 
 export const createSafeWriteStream = (targetPath) => {
+    assertNonEmptyString(targetPath, 'targetPath');
     return fs.createWriteStream(targetPath);
 };
 
 export const deleteSafeFile = async (targetPath) => {
+    assertNonEmptyString(targetPath, 'targetPath');
     try {
         await fsPromises.unlink(targetPath);
     } catch (err) {
@@ -113,6 +130,8 @@ export const deleteSafeFile = async (targetPath) => {
 };
 
 export const checkNoClobber = async (securePath, safeFileName) => {
+    assertNonEmptyString(securePath, 'securePath');
+    assertNonEmptyString(safeFileName, 'safeFileName');
     try {
         await fsPromises.lstat(securePath);
         throw new Error(`File "${safeFileName}" already exists. Overwrite strictly blocked.`);
@@ -122,5 +141,7 @@ export const checkNoClobber = async (securePath, safeFileName) => {
 };
 
 export const commitDownload = async (tmpPath, finalPath) => {
+    assertNonEmptyString(tmpPath, 'tmpPath');
+    assertNonEmptyString(finalPath, 'finalPath');
     await fsPromises.rename(tmpPath, finalPath);
 };
