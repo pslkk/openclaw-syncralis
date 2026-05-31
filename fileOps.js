@@ -35,7 +35,7 @@ export const getSecurePath = async (workspaceDir, requestedPath) => {
         throw new Error('SECURITY ALERT: Path contains invalid control characters.');
     }
     const realWorkspaceDir = await fsPromises.realpath(workspaceDir);
-    const resolvedPath = path.resolve(targetPath);
+    const resolvedPath = path.resolve(realWorkspaceDir, requestedPath);
    
     const relativePath = path.relative(realWorkspaceDir, resolvedPath);
     if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
