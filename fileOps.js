@@ -16,7 +16,10 @@ function assertNonEmptyString(value, name) {
 }
 
 export const getWorkspaceDir = (overrideDir) => {
-    if (overrideDir != null) assertNonEmptyString(overrideDir, 'overrideDir');
+    if (overrideDir) {
+        assertNonEmptyString(overrideDir, 'overrideDir');
+        return overrideDir;
+    }
     return overrideDir || path.join(os.homedir(), '.openclaw', 'workspace');
 };
 
