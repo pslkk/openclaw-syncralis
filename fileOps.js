@@ -28,9 +28,13 @@ export const ensureWorkspaceExists = async (workspaceDir) => {
 export const getSecurePath = async (workspaceDir, requestedPath) => {
     assertNonEmptyString(workspaceDir, 'workspaceDir');
     assertNonEmptyString(requestedPath, 'requestedPath');
+    if (path.isAbsolute(requestedPath)) {
+        throw new Error('SECURITY ALERT: Absolute paths are not permitted.');
+    }
+    if (/[\x00-\x1f\x7f]/.test(requestedPath)) {
+        throw new Error('SECURITY ALERT: Path contains invalid control characters.');
+    }
     const realWorkspaceDir = await fsPromises.realpath(workspaceDir);
-    const isAbsolutePath = path.isAbsolute(requestedPath);
-    const targetPath = isAbsolutePath ? requestedPath : path.join(realWorkspaceDir, requestedPath);
     const resolvedPath = path.resolve(targetPath);
    
     const relativePath = path.relative(realWorkspaceDir, resolvedPath);
@@ -70,6 +74,12 @@ export const statSafeFile = async (securePath) => {
     }
     if (!lstats.isFile()) {
         throw new Error('Requested path is not a regular file.');
+    }
+    if (lstats.size > MAX_FILE_SIZE_BYTES) {
+        throw new Error(
+            `File size (${(lstats.size / 1_048_576).toFixed(1)} MB) exceeds the ` +
+            `${MAX_FILE_SIZE_BYTES / 1_048_576} MB maximum.`
+        );
     }
     const mimeType = mime.lookup(securePath) || 'application/octet-stream';
     return { size: lstats.size, mtime: lstats.mtime, mimeType };
@@ -117,7 +127,7 @@ export const streamSafeFile = async (securePath, writableStream) => {
 
 export const createSafeWriteStream = (targetPath) => {
     assertNonEmptyString(targetPath, 'targetPath');
-    return fs.createWriteStream(targetPath);
+    return fs.createWriteStream(targetPath, { flags: 'wx' });
 };
 
 export const deleteSafeFile = async (targetPath) => {
