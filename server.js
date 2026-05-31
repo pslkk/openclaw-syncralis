@@ -120,7 +120,7 @@ const SECURITY_HEADERS = Object.freeze({
 
 let requestCount = 0;
 
-const pendingConfirmations  = new Map();
+const pendingConfirmations = new Map();
 const downloadAttemptTracker = new Map();
 
 function generateRequestId() {
@@ -128,7 +128,7 @@ function generateRequestId() {
 }
 
 function buildContentDisposition(filename) {
-    const ascii   = filename.replace(/[^\x20-\x7E]/g, '_').replace(/["\\;,]/g, '_');
+    const ascii = filename.replace(/[^\x20-\x7E]/g, '_').replace(/["\\;,]/g, '_');
     const encoded = encodeURIComponent(filename);
     return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
 }
@@ -220,8 +220,8 @@ function consumeConfirmationToken(token, expectedFilename) {
 class CircuitBreaker {
     #name;
     #failures = 0;
-    #state    = 'CLOSED';
-    #nextTry  = 0;
+    #state = 'CLOSED';
+    #nextTry = 0;
 
     constructor(name) { this.#name = name; }
 
@@ -251,7 +251,7 @@ class CircuitBreaker {
     onFailure() {
         this.#failures += 1;
         if (this.#failures >= CB_FAILURE_THRESHOLD) {
-            this.#state   = 'OPEN';
+            this.#state = 'OPEN';
             this.#nextTry = Date.now() + CB_RESET_TIMEOUT_MS;
             console.warn(
                 `[Warning] Circuit opened for provider: ${this.#name} ` +
@@ -674,13 +674,13 @@ function startSecureFileServer() {
         try {
             if (req.url === '/health' || req.url === '/health/') {
                 const body = JSON.stringify({
-                    status:    'ok',
-                    version:   pkg.version,
-                    uptime:    process.uptime(),
+                    status: 'ok',
+                    version: pkg.version,
+                    uptime: process.uptime(),
                     timestamp: new Date().toISOString(),
                 });
                 res.writeHead(200, {
-                    'Content-Type':   'application/json',
+                    'Content-Type': 'application/json',
                     'Content-Length': Buffer.byteLength(body),
                 });
                 return res.end(body);
@@ -812,10 +812,10 @@ function startSecureFileServer() {
         }
     });
 
-    fileServer.maxConnections   = HTTP_MAX_CONNECTIONS;
+    fileServer.maxConnections = HTTP_MAX_CONNECTIONS;
     fileServer.keepAliveTimeout = HTTP_KEEP_ALIVE_MS;
-    fileServer.headersTimeout   = HTTP_HEADERS_TIMEOUT;
-    fileServer.requestTimeout   = HTTP_REQUEST_TIMEOUT;
+    fileServer.headersTimeout = HTTP_HEADERS_TIMEOUT;
+    fileServer.requestTimeout = HTTP_REQUEST_TIMEOUT;
 
     fileServer.on('connection', (socket) => {
         activeConnections.add(socket);
