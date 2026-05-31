@@ -9,6 +9,7 @@ Syncralis provides load-balanced web searching, secure file downloads, and mobil
 ## 🚀 Key Features
 
 ***Stateless File Sharing:** Securely generates public Ngrok download links for files inside your workspace with a maximum of 3 download attempts until expiry.
+ > ⚠️ **SECURITY WARNING:** Generating a download link creates a public tunnel. This makes the specific local workspace file accessible to **anyone who possesses the link** when you share that link. Ensure you understand this exposure boundary before sharing sensitive local files.
 
 ***Load-Balanced Web Search:** Intelligently alternates between Tavily and Brave Search APIs to prevent rate-limiting and ensure high availability.
 
