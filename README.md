@@ -3,7 +3,7 @@
 
 An industry-grade, highly secure Model Context Protocol (MCP) server.
 
-Syncralis provides load-balanced web searching, secure file downloads, and mobile-ready external file sharing, built on a hardened, hybrid architecture.
+Syncralis provides load-balanced web searching, secure file downloads, and secure external file sharing, built on a hardened, hybrid architecture.
 
 Works with OpenClaw, Cursor, Claude Desktop, and any MCP client that can launch Node-based servers.
 
