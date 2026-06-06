@@ -355,7 +355,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 name: "share_files",
                 description: [
                     'Reads or shares workspace files.  Three actions are available:',
-                    "  'read'     — return file contents inline (no link generated).",
+                    "  'read' — return file contents inline. For PDFs: " +
+                    "(1) If the user specifies a page number, read that range directly using pageStart/pageEnd. " +
+                    "(2) If searching for a topic, first read pages 1-10 to find the Table of Contents. " +
+                    "If no TOC is found in pages 1-10, extend to pages 1-20, then check the final 10 pages as some PDFs place the index at the back. " +
+                    "(3) If the PDF has no TOC, scan in 15-page chunks from the beginning until the topic is located. " +
+                    "(4) Always read in chunks of 20 pages or fewer. Never request the full PDF in a single call. " +
+                    "(5) If a section appears to continue beyond the chunk boundary, read the next chunk to complete it. " +
+                    "(6) For PDFs under 15 pages total, reading the entire document in one call is acceptable.",
                     "  'preview'  — REQUIRED first step before sharing.  Returns file metadata",
                     '               (name, size, type, modified) and a short-lived confirmationToken.',
                     '               Present ALL metadata to the user and ask for explicit approval',
@@ -379,6 +386,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                         confirmationToken: {
                             type: 'string',
                             description: "Required for action=download. The token returned by the preceding 'preview' call for this exact file."
+                        },
+                        pageStart: {
+                            type: "number",
+                            description: "PDF files only. The first page to return, 1-based (page 1 = first page). Omit only if the PDF is under 15 pages total and you intend to read the whole file."
+                        },
+                        pageEnd: {
+                            type: "number",
+                            description: "PDF files only. The last page to return, inclusive and 1-based. Keep the range between pageStart and pageEnd to 20 pages or fewer to avoid context overflow. If the content you need continues beyond pageEnd, make a follow-up call with the next range. Omit only if the PDF is under 15 pages total."
                         }
                     },
                     required: ["filePath", "action"]
@@ -482,10 +497,32 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             if (mimeType.startsWith('image/')) {
                 return { content: [{ type: "image", data: buffer.toString('base64'), mimeType }] };
             }
+            
             if (mimeType === 'application/pdf') {
-                const pdfData = await pdf(buffer);
-                return { content: [{ type: "text", text: pdfData.text }] };
+                const pdfOptions = { max: 0 };
+                const pdfData = await pdf(buffer, pdfOptions);
+                let pages;
+                if (pdfData.nativePageTexts && pdfData.nativePageTexts.length > 1) {
+                    pages = pdfData.nativePageTexts;
+                } else {
+                    const ffPages = pdfData.text.split(/\f/);
+                    if (ffPages.length > 1) {
+                        pages = ffPages;
+                    } else {
+                        const CHUNK = 3000;
+                        const t = pdfData.text;
+                        pages = [];
+                        for (let i = 0; i < t.length; i += CHUNK) pages.push(t.slice(i, i + CHUNK));
+                    }
+                }
+                const totalPages = pages.length;
+                const start = Math.max(1, parseInt(pageStart) || 1);
+                const end   = Math.min(totalPages, parseInt(pageEnd) || totalPages);
+                const slice = pages.slice(start - 1, end).join("\n");
+                const header = `[PDF: ${fileName} | Pages ${start}–${end} of ${totalPages}]\n\n`;
+                return { content: [{ type: "text", text: header + slice }] };
             }
+            
             if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
                 const docxData = await mammoth.extractRawText({ buffer: buffer });
                 return { content: [{ type: "text", text: docxData.value }] };
