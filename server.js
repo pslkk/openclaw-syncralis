@@ -445,7 +445,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (name === "share_files") {
         try {
             checkRateLimit('share_files');
-            const { filePath, action = "read", confirmationToken } = args;
+            const { filePath, action = "read", confirmationToken, pageStart, pageEnd } = args;
             const securePath = await getSecurePath(WORKSPACE_DIR, filePath);
             const fileName = path.basename(securePath);
 
