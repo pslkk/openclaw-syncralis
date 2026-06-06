@@ -2,7 +2,7 @@
   "id": "openclaw-syncralis",
   "name": "openclaw-syncralis",
   "displayName": "Syncralis Gateway",
-  "version": "2.7.1",
+  "version": "2.7.3",
   "description": "An industry-grade MCP gateway providing three capabilities: (1) secure workspace file sharing with HMAC-signed time-limited download links via Ngrok tunnel, (2) authenticated URL-to-workspace file downloads with MIME validation, and (3) load-balanced web search across Tavily and Brave with circuit-breaker failover. Requires outbound internet access and an optional Ngrok tunnel for public download links.",
   "type": "gateway",
   "main": "./server.js",
@@ -99,7 +99,7 @@
       "envalid": "^8.1.1",
       "mammoth": "^1.12.0",
       "mime-types": "^3.0.2",
-      "pdf-parse": "^2.4.5"
+      "pdf-parse": "^1.1.1"
     },
     "overrides": {
       "@modelcontextprotocol/sdk": {
