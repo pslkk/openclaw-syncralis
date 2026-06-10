@@ -157,7 +157,7 @@ export const streamSafeFile = async (securePath, writableStream) => {
 
 export const createSafeWriteStream = (targetPath) => {
     assertNonEmptyString(targetPath, 'targetPath');
-    return fs.createWriteStream(targetPath, { flags: 'wx', mode: 0o600 });
+    return fs.createWriteStream(targetPath, { flags: 'wx', mode: 0o644 });
 };
 
 export const deleteSafeFile = async (targetPath) => {
@@ -185,5 +185,5 @@ export const commitDownload = async (tmpPath, finalPath) => {
     assertNonEmptyString(tmpPath, 'tmpPath');
     assertNonEmptyString(finalPath, 'finalPath');
     await fsPromises.rename(tmpPath, finalPath);
-    await fsPromises.chmod(finalPath, 0o600);
+    await fsPromises.chmod(finalPath, 0o644);
 };
