@@ -8,7 +8,9 @@ export function redactUrl(rawUrl) {
         const parsed = new URL(rawUrl);
         if (parsed.username) parsed.username = '***';
         if (parsed.password) parsed.password = '***';
-        if (parsed.search) parsed.search = '?***';
+        for (const key of [...parsed.searchParams.keys()]) {
+            parsed.searchParams.set(key, '***');
+        }
         return parsed.toString();
     } catch {
         return '[REDACTED_INVALID_URL]';
