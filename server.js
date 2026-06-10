@@ -499,6 +499,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             }
             
             if (mimeType === 'application/pdf') {
+                const PDF_MAX_BYTES = 20 * 1024 * 1024;
+                if (buffer.length > PDF_MAX_BYTES) {
+                    throw new Error(
+                        `PDF too large for in-memory processing ` +
+                        `(${(buffer.length / 1_048_576).toFixed(1)} MB). ` +
+                        `Maximum for PDF reading is ${PDF_MAX_BYTES / 1_048_576} MB. ` +
+                        `Split the PDF into smaller parts or use a dedicated PDF reader.`
+                    );
+                }
                 const pdfOptions = { max: 0 };
                 const pdfData = await pdf(buffer, pdfOptions);
                 let pages;
@@ -608,11 +617,28 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
             const isBraveTurn = (requestCount++ % 2) === 0;
 
-            let resultText;
-            if (isBraveTurn) {
-                resultText = await executeSearchAttempt(query, braveKey, 'brave', fetchBrave) ?? await executeSearchAttempt(query, tavilyKey, 'tavily', fetchTavily);
-            } else {
-                resultText = await executeSearchAttempt(query, tavilyKey, 'tavily', fetchTavily) ?? await executeSearchAttempt(query, braveKey, 'brave', fetchBrave);
+            const primary = isBraveTurn
+                ? { key: braveKey,  name: 'brave',  fn: fetchBrave  }
+                : { key: tavilyKey, name: 'tavily', fn: fetchTavily };
+            const secondary = isBraveTurn
+                ? { key: tavilyKey, name: 'tavily', fn: fetchTavily }
+                : { key: braveKey,  name: 'brave',  fn: fetchBrave  };
+
+            let resultText = null;
+
+            try {
+                resultText = await executeSearchAttempt(query, primary.key, primary.name, primary.fn);
+            } catch (primaryErr) {
+                auditLog('SEARCH_PRIMARY_FAILED', { provider: primary.name, error: primaryErr.message });
+            }
+
+            if (resultText === null) {
+                try {
+                    resultText = await executeSearchAttempt(query, secondary.key, secondary.name, secondary.fn);
+                } catch (secondaryErr) {
+                    auditLog('SEARCH_SECONDARY_FAILED', { provider: secondary.name, error: secondaryErr.message });
+                    return { isError: true, content: [{ type: 'text', text: 'Search failed: all providers are currently unavailable.' }] };
+                }
             }
 
             if (resultText === null) {
