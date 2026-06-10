@@ -15,12 +15,39 @@ function assertNonEmptyString(value, name) {
     }
 }
 
+const ALLOWED_WRITE_EXTENSIONS = new Set([
+    '.txt', '.md', '.rtf', '.odt', '.ods',
+    '.pdf', '.docx', '.doc', '.xlsx', '.xls', '.xlsm', '.pptx', '.ppt',
+    '.csv', '.tsv', '.json', '.jsonl', '.xml', '.yaml', '.yml',
+    '.html', '.htm',
+    '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.tiff',
+    '.mp4', '.mp3', '.wav', '.ogg', '.flac', '.aac',
+    '.zip', '.tar', '.gz', '.bz2', '.7z',
+    '.log', '.epub', '.mobi'
+]);
+
+export function checkExtensionAllowlist(filename) {
+    assertNonEmptyString(filename, 'filename');
+    const ext = path.extname(filename).toLowerCase();
+    if (!ext) {
+        throw new Error(
+            `SECURITY ALERT: Files without an extension are not permitted in the workspace.`
+        );
+    }
+    if (!ALLOWED_WRITE_EXTENSIONS.has(ext)) {
+        throw new Error(
+            `SECURITY ALERT: Extension "${ext}" is not permitted. ` +
+            `Blocked to prevent executable or system-configuration file writes.`
+        );
+    }
+}
+
 export const getWorkspaceDir = (overrideDir) => {
     if (overrideDir) {
         assertNonEmptyString(overrideDir, 'overrideDir');
         return overrideDir;
     }
-    return overrideDir || path.join(os.homedir(), '.openclaw', 'workspace');
+    return path.join(os.homedir(), '.openclaw', 'workspace');
 };
 
 export const ensureWorkspaceExists = async (workspaceDir) => {
@@ -145,6 +172,7 @@ export const deleteSafeFile = async (targetPath) => {
 export const checkNoClobber = async (securePath, safeFileName) => {
     assertNonEmptyString(securePath, 'securePath');
     assertNonEmptyString(safeFileName, 'safeFileName');
+    checkExtensionAllowlist(safeFileName);
     try {
         await fsPromises.lstat(securePath);
         throw new Error(`File "${safeFileName}" already exists. Overwrite strictly blocked.`);
