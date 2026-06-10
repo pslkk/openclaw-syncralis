@@ -81,7 +81,10 @@ export function checkRateLimit(toolName) {
     const key    = `${toolName}:${bucket}`;
 
     for (const k of _buckets.keys()) {
-        if (k !== key) _buckets.delete(k);
+        const sep = k.lastIndexOf(':');
+        if (sep !== -1 && parseInt(k.slice(sep + 1), 10) < bucket) {
+            _buckets.delete(k);
+        }
     }
 
     const count = (_buckets.get(key) ?? 0) + 1;
@@ -130,7 +133,7 @@ export async function validateAndResolve(rawUrl) {
         );
     }
   
-    const blockedPorts = new Set([0, 22, 23, 25, 110, 143, 3306, 5432, 6379, 27017]);
+    const blockedPorts = new Set([0, 22, 23, 25, 110, 143, 3306, 5432, 6379, 27017, 2375, 2376, 3000, 5000, 8000, 8080, 8443, 8888, 9000, 9090, 9200, 9300, 11211, 7474, 7687, 6060, 10250, 10255, 10256]);
     const port = parseInt(parsed.port || (parsed.protocol === 'https:' ? '443' : '80'), 10);
     if (blockedPorts.has(port)) {
         throw new Error(`Blocked: port ${port} is not permitted.`);
@@ -284,25 +287,25 @@ export async function secureFetch(rawUrl, extraHeaders = {}, redirectCount = 0) 
 }
 
 export async function streamToFile(response, fileStream) {
-    return new Promise((resolve, reject) => {
-        let bytesReceived = 0;
-
-        response.on('data', (chunk) => {
+    let bytesReceived = 0;
+    const sizeGuard = new Transform({
+        transform(chunk, _encoding, callback) {
             bytesReceived += chunk.length;
             if (bytesReceived > MAX_RESPONSE_BYTES) {
-                response.destroy();
-                fileStream.destroy();
-                reject(new Error(
-                    `Download aborted: exceeded ` +
-                    `${MAX_RESPONSE_BYTES / 1024 / 1024}MB size limit.`
+                callback(new Error(
+                    `Download aborted: exceeded ${MAX_RESPONSE_BYTES / 1024 / 1024}MB size limit.`
                 ));
+                return;
             }
-        });
-
-        response.pipe(fileStream);
-
-        fileStream.on('finish', resolve);
-        fileStream.on('error', (err) => { response.destroy(); reject(err); });
-        response.on('error',   (err) => { fileStream.destroy(); reject(err); });
+            callback(null, chunk);
+        },
     });
+
+    try {
+        await pipeline(response, sizeGuard, fileStream);
+    } catch (err) {
+        if (!response.destroyed)  response.destroy();
+        if (!fileStream.destroyed) fileStream.destroy();
+        throw err;
+    }
 }
