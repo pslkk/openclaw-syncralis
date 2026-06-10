@@ -2,6 +2,8 @@ import dns from 'dns/promises';
 import net from 'net';
 import http from 'http';
 import https from 'https';
+import { Transform } from 'stream';
+import { pipeline } from 'stream/promises';
 
 export function redactUrl(rawUrl) {
     try {
