@@ -171,7 +171,7 @@ export function getClientIp(req, trustedProxies) {
     if (typeof xff !== 'string' || xff.length === 0) {
         return remoteAddr;
     }
-    const parts = xff.split(',').slice(0, MAX_XFF_CHAIN);
+    const parts = xff.split(',').slice(-MAX_XFF_CHAIN);
     for (let i = parts.length - 1; i >= 0; i--) {
         const candidate = normalizeIp(parts[i].trim());
         if (!candidate) continue;
