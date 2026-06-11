@@ -15,6 +15,7 @@
     "config.js",
     "fileOps.js",
     "safegrd.js",
+    "parserWorker.js",
     "openclaw.plugin.json",
     ".env.example"
   ],
