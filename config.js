@@ -18,7 +18,8 @@ export const env = cleanEnv(safeEnv, {
     NGROK_API_PORT: port({ default: 4040 }),
     URL_SIGNING_SECRET: str({ default: '' }),
     TAVILY_API_KEY: str({ default: '' }),
-    BRAVE_API_KEY: str({ default: '' })
+    BRAVE_API_KEY: str({ default: '' }),
+    TRUSTED_PROXY_IPS: str({ default: '' })
 });
 
 export const signingSecret = env.URL_SIGNING_SECRET || (() => {
@@ -29,6 +30,28 @@ export const signingSecret = env.URL_SIGNING_SECRET || (() => {
     return crypto.randomBytes(32).toString('hex');
 })();
 
+export function parseTrustedProxies(raw) {
+    const proxies = new Set(['127.0.0.1', '::1']);
+
+    if (!raw || typeof raw !== 'string') return proxies;
+
+    for (const entry of raw.split(',')) {
+        const candidate = entry.trim();
+        if (!candidate) continue;
+
+        const canonical = normalizeIp(candidate);
+        if (canonical) {
+            proxies.add(canonical);
+            if (candidate !== canonical && net.isIP(candidate)) {
+                proxies.add(candidate);
+            }
+        } else {
+            auditLog('TRUSTED_PROXY_INVALID_ENTRY', { value: candidate });
+        }
+    }
+    return proxies;
+}
+
 export const GATEWAY_CONFIG = Object.freeze({
     host: env.FILE_SERVER_HOST,
     port: env.FILE_SERVER_PORT,
@@ -37,5 +60,6 @@ export const GATEWAY_CONFIG = Object.freeze({
     discoveryPort: env.NGROK_API_PORT,
     tavilyKey: env.TAVILY_API_KEY,
     braveKey: env.BRAVE_API_KEY,
+    trustedProxyIPs: parseTrustedProxies(env.TRUSTED_PROXY_IPS),
     secret: signingSecret
 });
