@@ -21,7 +21,10 @@ import {
     createSafeWriteStream, 
     deleteSafeFile,
     checkNoClobber,
-    commitDownload
+    commitDownload,
+    checkExtensionAllowlist,
+    writeSafeFileAtomic,
+    runParserWorker
 } from './fileOps.js';
 
 import {
@@ -435,6 +438,29 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                     },
                     required: ["query"]
                 }
+            },
+            {
+                name: "save_shared_file",
+                description: "Saves a file provided directly by the AI agent into the workspace. Use this to save generated images, PDFs, DOCX, or text files without needing an external URL download. Binary files MUST be provided as base64 encoded strings.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        fileName: {
+                            type: "string",
+                            description: "The name of the file to save, including the exact extension (e.g., target_image.png, report.pdf)."
+                        },
+                        content: {
+                            type: "string",
+                            description: "The raw content of the file. For binary files like images and PDFs, this MUST be a base64 encoded string."
+                        },
+                        encoding: {
+                            type: "string",
+                            enum: ["utf-8", "base64"],
+                            description: "The encoding of the provided content. Use 'base64' for images/documents and 'utf-8' for plain text. Defaults to 'base64'."
+                        }
+                    },
+                    required: ["fileName", "content"]
+                }
             }
         ]
     };
@@ -499,43 +525,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 return { content: [{ type: "image", data: buffer.toString('base64'), mimeType }] };
             }
             
-            if (mimeType === 'application/pdf') {
+            if (mimeType === 'application/pdf' || mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
                 const PDF_MAX_BYTES = 20 * 1024 * 1024;
                 if (buffer.length > PDF_MAX_BYTES) {
                     throw new Error(
-                        `PDF too large for in-memory processing ` +
+                        `File too large for processing ` +
                         `(${(buffer.length / 1_048_576).toFixed(1)} MB). ` +
-                        `Maximum for PDF reading is ${PDF_MAX_BYTES / 1_048_576} MB. ` +
-                        `Split the PDF into smaller parts or use a dedicated PDF reader.`
+                        `Maximum allowed is ${PDF_MAX_BYTES / 1_048_576} MB. `
                     );
                 }
-                const pdfOptions = { max: 0 };
-                const pdfData = await pdf(buffer, pdfOptions);
-                let pages;
-                if (pdfData.nativePageTexts && pdfData.nativePageTexts.length > 1) {
-                    pages = pdfData.nativePageTexts;
-                } else {
-                    const ffPages = pdfData.text.split(/\f/);
-                    if (ffPages.length > 1) {
-                        pages = ffPages;
-                    } else {
-                        const CHUNK = 3000;
-                        const t = pdfData.text;
-                        pages = [];
-                        for (let i = 0; i < t.length; i += CHUNK) pages.push(t.slice(i, i + CHUNK));
-                    }
-                }
-                const totalPages = pages.length;
-                const start = Math.max(1, parseInt(pageStart) || 1);
-                const end   = Math.min(totalPages, parseInt(pageEnd) || totalPages);
-                const slice = pages.slice(start - 1, end).join("\n");
-                const header = `[PDF: ${fileName} | Pages ${start}–${end} of ${totalPages}]\n\n`;
-                return { content: [{ type: "text", text: header + slice }] };
-            }
-            
-            if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-                const docxData = await mammoth.extractRawText({ buffer: buffer });
-                return { content: [{ type: "text", text: docxData.value }] };
+                auditLog('FILE_READ_DELEGATED_TO_WORKER', { file: fileName, mimeType });
+                const parsedText = await runParserWorker({
+                    securePath,
+                    mimeType,
+                    pageStart,
+                    pageEnd,
+                    fileName
+                });
+                return { content: [{ type: "text", text: parsedText }] };
             }
             
             auditLog('FILE_READ', { file: fileName, mimeType });
@@ -654,6 +661,38 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
     }
 
+    else if (name === "save_shared_file") {
+        try {
+            checkRateLimit('save_shared_file');
+            const { fileName, content, encoding = 'base64' } = args;
+            const safeFileName = path.basename(fileName);
+            checkExtensionAllowlist(safeFileName);
+            await ensureWorkspaceExists(WORKSPACE_DIR);
+            const isText = encoding === 'utf-8';
+            const finalTargetPath = await writeSafeFileAtomic(
+                WORKSPACE_DIR, 
+                safeFileName, 
+                content, 
+                isText
+            );
+            
+            auditLog('SHARED_FILE_SAVED', { target: safeFileName, encoding });
+            return {
+                content: [{
+                    type: "text",
+                    text: `SUCCESS: Payload successfully decoded and committed. File secured at: ${finalTargetPath}`
+                }]
+            };
+
+        } catch (error) {
+            auditLog('SHARED_FILE_SAVE_FAILED', { error: error.message });
+            return {
+                isError: true,
+                content: [{ type: "text", text: `Secure Gateway Write Disruption: ${error.message}` }]
+            };
+        }
+    }
+    
     throw new Error(`Tool not found: ${name}`);
 });
 
