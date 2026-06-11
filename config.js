@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { parseTrustedProxies } from './safegrd.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '.env') });
@@ -29,28 +30,6 @@ export const signingSecret = env.URL_SIGNING_SECRET || (() => {
     }
     return crypto.randomBytes(32).toString('hex');
 })();
-
-export function parseTrustedProxies(raw) {
-    const proxies = new Set(['127.0.0.1', '::1']);
-
-    if (!raw || typeof raw !== 'string') return proxies;
-
-    for (const entry of raw.split(',')) {
-        const candidate = entry.trim();
-        if (!candidate) continue;
-
-        const canonical = normalizeIp(candidate);
-        if (canonical) {
-            proxies.add(canonical);
-            if (candidate !== canonical && net.isIP(candidate)) {
-                proxies.add(candidate);
-            }
-        } else {
-            auditLog('TRUSTED_PROXY_INVALID_ENTRY', { value: candidate });
-        }
-    }
-    return proxies;
-}
 
 export const GATEWAY_CONFIG = Object.freeze({
     host: env.FILE_SERVER_HOST,
