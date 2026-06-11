@@ -30,7 +30,8 @@ import {
     secureFetch,
     streamToFile,
     auditLog,
-    redactUrl 
+    redactUrl,
+    getClientIp
 } from './safegrd.js';
 
 const WORKSPACE_DIR = getWorkspaceDir(GATEWAY_CONFIG.workspaceOverride);
@@ -739,11 +740,7 @@ function startSecureFileServer() {
     const fileServer = http.createServer(async (req, res) => {
         const requestId = req.headers['x-request-id']?.slice(0, 64) || generateRequestId();
         const startMs   = Date.now();
-        const clientIp  = (
-            req.headers['x-forwarded-for']?.split(',')[0].trim() ||
-            req.socket?.remoteAddress ||
-            'unknown'
-        );
+        const clientIp  = getClientIp(req, GATEWAY_CONFIG.trustedProxyIPs);
 
         for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.setHeader(k, v);
         res.setHeader('X-Request-Id', requestId);
