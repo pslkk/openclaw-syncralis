@@ -6,7 +6,6 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 import path from "path";
 import http from "http";
 import mime from "mime-types";
-import mammoth from "mammoth";
 import { createRequire } from "module";
 import crypto from 'crypto';
 
@@ -77,7 +76,6 @@ if (!activeTunnelUrl) {
 }
 
 const require = createRequire(import.meta.url);
-const pdf = require("pdf-parse");
 const pkg = require("./package.json");
 
 if (process.argv.includes('--version') || process.argv.includes('-v')) {
