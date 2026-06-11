@@ -4,6 +4,12 @@ import path from 'path';
 import mime from 'mime-types';
 import { pipeline } from 'stream/promises';
 import os from 'os';
+import { Worker } from 'worker_threads';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const WORKER_PATH = path.join(__dirname, 'parserWorker.js');
 
 export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 
@@ -187,3 +193,25 @@ export const commitDownload = async (tmpPath, finalPath) => {
     await fsPromises.rename(tmpPath, finalPath);
     await fsPromises.chmod(finalPath, 0o644);
 };
+
+export function runParserWorker(jobData) {
+    return new Promise((resolve, reject) => {
+        const worker = new Worker(WORKER_PATH);
+        worker.on('message', (result) => {
+            if (result.success) {
+                resolve(result.text);
+            } else {
+                reject(new Error(result.error));
+            }
+            worker.terminate();
+        });
+        worker.on('error', (err) => {
+            reject(err);
+            worker.terminate();
+        });
+        worker.on('exit', (code) => {
+            if (code !== 0) reject(new Error(`Worker stopped with exit code ${code}`));
+        });
+        worker.postMessage(jobData);
+    });
+}
