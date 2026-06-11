@@ -122,6 +122,66 @@ export function isPrivateIP(ip) {
     if (embedded !== null) return isPrivateIP(embedded);
     return BLOCKED_IP_RANGES.some(r => r.test(ip));
 }
+
+const MAX_XFF_CHAIN = 20;
+function normalizeIp(raw) {
+    if (typeof raw !== 'string') return null;
+    const stripped = raw.split('%')[0].trim();
+    if (!net.isIP(stripped)) return null;
+    const embedded = extractEmbeddedIPv4(stripped);
+    return embedded ?? stripped;
+}
+
+export function parseTrustedProxies(raw) {
+    const proxies = new Set(['127.0.0.1', '::1']);
+
+    if (!raw || typeof raw !== 'string') return proxies;
+
+    for (const entry of raw.split(',')) {
+        const candidate = entry.trim();
+        if (!candidate) continue;
+
+        const canonical = normalizeIp(candidate);
+        if (canonical) {
+            proxies.add(canonical);
+            if (candidate !== canonical && net.isIP(candidate)) {
+                proxies.add(candidate);
+            }
+        } else {
+            auditLog('TRUSTED_PROXY_INVALID_ENTRY', { value: candidate });
+        }
+    }
+    return proxies;
+}
+
+export function getClientIp(req, trustedProxies) {
+    const rawRemote =
+        req.socket?.remoteAddress ??
+        req.connection?.remoteAddress;
+
+    const remoteAddr = normalizeIp(rawRemote) ?? 'unknown';
+    const proxies =
+        trustedProxies instanceof Set && trustedProxies.size > 0
+            ? trustedProxies
+            : new Set(['127.0.0.1', '::1']);
+    if (!proxies.has(remoteAddr)) {
+        return remoteAddr;
+    }
+    const xff = req.headers?.['x-forwarded-for'];
+    if (typeof xff !== 'string' || xff.length === 0) {
+        return remoteAddr;
+    }
+    const parts = xff.split(',').slice(0, MAX_XFF_CHAIN);
+    for (let i = parts.length - 1; i >= 0; i--) {
+        const candidate = normalizeIp(parts[i].trim());
+        if (!candidate) continue;
+        if (!proxies.has(candidate)) {
+            return candidate;
+        }
+    }
+    return remoteAddr;
+}
+
 export async function validateAndResolve(rawUrl) {
     let parsed;
     try {
