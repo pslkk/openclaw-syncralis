@@ -6,6 +6,7 @@ import { pipeline } from 'stream/promises';
 import os from 'os';
 import { Worker } from 'worker_threads';
 import { fileURLToPath } from 'url';
+import crypto from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -190,8 +191,47 @@ export const checkNoClobber = async (securePath, safeFileName) => {
 export const commitDownload = async (tmpPath, finalPath) => {
     assertNonEmptyString(tmpPath, 'tmpPath');
     assertNonEmptyString(finalPath, 'finalPath');
-    await fsPromises.rename(tmpPath, finalPath);
-    await fsPromises.chmod(finalPath, 0o644);
+    try {
+        await fsPromises.rename(tmpPath, finalPath);
+        await fsPromises.chmod(finalPath, 0o644);
+    } catch (copyError) {
+        if (copyError.code === 'EXDEV') {
+            await pipeline(
+                fs.createReadStream(tmpPath),
+                fs.createWriteStream(finalPath, { mode: 0o644 })
+            );
+            await fsPromises.unlink(tmpPath).catch(() => {});
+        } else {
+            throw copyError;
+        }
+    }
+};
+
+export const writeSafeFileAtomic = async (workspaceDir, safeFileName, contentPayload, isText = false) => {
+    assertNonEmptyString(workspaceDir, 'workspaceDir');
+    assertNonEmptyString(safeFileName, 'safeFileName');
+    assertNonEmptyString(contentPayload, 'contentPayload');
+    const finalPath = await getSecurePath(workspaceDir, safeFileName);
+    await checkNoClobber(finalPath, safeFileName);
+    const encoding = isText ? 'utf-8' : 'base64';
+    const fileBuffer = Buffer.from(contentPayload, encoding);
+    if (fileBuffer.length > MAX_FILE_SIZE_BYTES) {
+        throw new Error(
+            `Decoded payload (${(fileBuffer.length / 1_048_576).toFixed(1)} MB) exceeds the ` +
+            `${MAX_FILE_SIZE_BYTES / 1_048_576} MB maximum boundary.`
+        );
+    }
+    const tmpFileName = `.tmp.${crypto.randomBytes(6).toString('hex')}.${safeFileName}`;
+    const tmpPath = path.join(path.dirname(finalPath), tmpFileName);
+
+    try {
+        await fsPromises.writeFile(tmpPath, fileBuffer, { mode: 0o644 });
+        await commitDownload(tmpPath, finalPath);
+        return finalPath;
+    } catch (err) {
+        await fsPromises.unlink(tmpPath).catch(() => {});
+        throw err;
+    }
 };
 
 export function runParserWorker(jobData) {
